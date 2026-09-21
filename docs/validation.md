@@ -22,3 +22,10 @@ Docker is not installed on the development machine, so images and Compose startu
 - A separately configured runtime APP_URL correctly appears in homepage and report social metadata; this does not depend on the build machine origin.
 - Browser verification covers lane switching, exact conversation drill-down, restored deep links after reload, public provider-name prefill and 390-pixel mobile layouts.
 - Original report evidence and rubric JSON are unchanged.
+
+## Production HTTPS and SendGrid preparation
+
+- The HTTPS deployment overlay passed Docker Compose and Caddy configuration validation in GitHub Actions, alongside both container builds.
+- 41 local tests pass, including mocked SendGrid multipart payloads, disabled tracking, retry timing, sender validation, safe failure diagnostics, and provider-specific readiness.
+- Typecheck and optimized production build pass after adding SendGrid.
+- No SendGrid message has been sent and no server or DNS record has been provisioned by these checks. Target-host startup, sender authentication, actual inbox delivery, and a complete live evaluation remain production verification steps.

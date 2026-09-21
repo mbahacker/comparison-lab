@@ -9,7 +9,8 @@ export function config() {
     contentDir: path.resolve(/* turbopackIgnore: true */ process.env.CONTENT_DIR || './content/reports'),
     adminEmail: process.env.ADMIN_EMAIL || 'ashu@alhena.ai',
     mailFrom: process.env.MAIL_FROM || 'Comparison Lab <reports@alhena.ai>',
-    mailTransport: process.env.MAIL_TRANSPORT || (production ? 'resend' : 'file'),
+    mailTransport: process.env.MAIL_TRANSPORT || (production ? 'sendgrid' : 'file'),
+    sendgridKey: process.env.SENDGRID_API_KEY || '',
     resendKey: process.env.RESEND_API_KEY || '',
     workerSecret: process.env.WORKER_SECRET || '',
     secureCookies: appUrl.startsWith('https://'),
@@ -20,7 +21,8 @@ export function config() {
 
 export function readiness() {
   const c = config();
-  const emailReady = c.mailTransport === 'resend' ? !!c.resendKey : c.mailTransport === 'file' && !c.production;
+  const emailReady = c.mailTransport === 'sendgrid' ? !!c.sendgridKey
+    : c.mailTransport === 'resend' ? !!c.resendKey : c.mailTransport === 'file' && !c.production;
   return {
     emailConfigured: emailReady,
     emailDelivery: c.mailTransport === 'file' ? 'local-development-files' : 'email',

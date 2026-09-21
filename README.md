@@ -62,7 +62,7 @@ Deployment needs:
 
 - A Linux host with Docker Compose and Chromium sandbox support.
 - A domain and HTTPS origin matching `APP_URL`.
-- A Resend API key and a verified sender domain/address. The default sender `reports@alhena.ai` is a configuration suggestion; this repository does not verify DNS or provision that mailbox.
+- A SendGrid API key with Mail Send access and an authenticated sender domain (`MAIL_TRANSPORT=sendgrid`). Resend remains available as an alternative. The default sender `reports@alhena.ai` is a configuration suggestion; this repository does not verify DNS or provision that mailbox.
 - A random shared worker secret of at least 32 characters.
 - A model API key and explicit `JUDGE_MODEL` and `AUDITOR_MODEL` IDs supported by that account.
 

@@ -9,8 +9,9 @@ services:
       DATA_DIR: /data
       ADMIN_EMAIL: ${ADMIN_EMAIL:-ashu@alhena.ai}
       MAIL_FROM: ${MAIL_FROM:?Set a verified sender address}
-      MAIL_TRANSPORT: resend
-      RESEND_API_KEY: ${RESEND_API_KEY:?Set the transactional email key}
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-sendgrid}
+      SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
       WORKER_SECRET: ${WORKER_SECRET:?Set a random secret of at least 32 characters}
     volumes:
       - app-data:/data

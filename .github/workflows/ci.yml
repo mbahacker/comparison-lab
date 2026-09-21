@@ -26,7 +26,8 @@ jobs:
         env:
           APP_URL: https://evals.alhena.ai
           MAIL_FROM: Comparison Lab <reports@alhena.ai>
-          RESEND_API_KEY: ci-placeholder-not-a-real-key
+          MAIL_TRANSPORT: sendgrid
+          SENDGRID_API_KEY: ci-placeholder-not-a-real-key
           WORKER_SECRET: ci-placeholder-worker-secret-at-least-32-characters
           OPENAI_API_KEY: ci-placeholder-not-a-real-key
           JUDGE_MODEL: ci-placeholder-model

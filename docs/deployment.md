@@ -5,7 +5,7 @@
 Use a dedicated Linux host with at least 4 GB RAM and Docker Compose v2. Keep the existing Jarvis automation host separate. This app requires persistent storage and a long-running browser worker; a static website host alone is insufficient.
 
 1. Clone `https://github.com/mbahacker/comparison-lab.git` onto the selected host and use a reviewed commit. Create a fresh production data volume; do not copy the local preview database, accounts, or queued test requests.
-2. Copy `.env.example` to `.env`, restrict its permissions (`chmod 600 .env`), and configure all required values. `APP_URL` is `https://evals.alhena.ai`; approval emails go to `ashu@alhena.ai`. Confirm that `MAIL_FROM` is authorized by the verified Resend sender domain. Enter secrets on the host or through its secret manager, never in Git or chat.
+2. Copy `.env.example` to `.env`, restrict its permissions (`chmod 600 .env`), and configure all required values. `APP_URL` is `https://evals.alhena.ai`; approval emails go to `ashu@alhena.ai`. Set `MAIL_TRANSPORT=sendgrid` and configure `SENDGRID_API_KEY`. Confirm that `MAIL_FROM` is authorized by the authenticated SendGrid sender domain. Enter secrets on the host or through its secret manager, never in Git or chat.
 3. In the `alhena.ai` Cloudflare zone, create an `A` record named `evals` pointing to the host's public IPv4 address. Initially use DNS-only mode for straightforward certificate provisioning. Do not change the apex or other subdomains. Only add an `AAAA` record if IPv6 reaches this same server.
 4. Permit inbound TCP 80 and 443, and optionally UDP 443 for HTTP/3, in the cloud firewall. Limit SSH access to the operator. Port 3100 remains loopback-only.
 5. On a dedicated host without another web server, start the bundled HTTPS proxy and application:
@@ -29,7 +29,7 @@ For later updates, use both Compose files consistently, preserve `app-data`, `wo
 
 1. Use a Linux web server with Docker Engine, Compose v2, at least 4 GB RAM, adequate disk space for evidence, and unprivileged Chromium sandbox support.
 2. Point a domain to the server and install Caddy or an equivalent HTTPS reverse proxy.
-3. Create `.env` from `.env.example`. Set the public HTTPS URL, approved sender, Resend API key, shared worker secret, model API key and two explicit model IDs. Keep `.env` permission-restricted and out of Git.
+3. Create `.env` from `.env.example`. Set the public HTTPS URL, approved sender, SendGrid API key, shared worker secret, model API key and two explicit model IDs. Keep `.env` permission-restricted and out of Git. The selected email transport needs its matching key; the website can start without one, but email verification will be unavailable.
 4. Verify the sender domain with the email service. The approval recipient is `ashu@alhena.ai` by default.
 5. Ensure outbound access to the selected model API, email API, GitHub pinned-reference downloads and the public storefronts. The worker's browser proxy rejects private and reserved networks, including cloud metadata addresses.
 
@@ -64,7 +64,11 @@ The test suite does not substitute for this live deployment check. No production
 
 ## Email delivery
 
-The `mailer` service owns a durable retry loop. Approval, status and report emails are inserted transactionally into SQLite and use stable provider idempotency keys. Worker lease and publication endpoints do not wait for mail delivery. A provider failure leaves an outbox entry to retry; it does not invalidate published evidence.
+The `mailer` service owns a durable retry loop. Approval, status and report emails are inserted transactionally into SQLite. Worker lease and publication endpoints do not wait for mail delivery. A provider failure leaves an outbox entry to retry; it does not invalidate published evidence.
+
+For SendGrid, authenticate the sender domain and create a restricted API key with Mail Send access. Set `MAIL_FROM` to a sender under that authenticated domain, for example `Comparison Lab <reports@alhena.ai>`. Add only the domain-authentication records provided by SendGrid, with Cloudflare proxying disabled on those records; do not replace existing MX records. See [SendGrid domain authentication](https://www.twilio.com/docs/sendgrid/ui/account-and-settings/how-to-set-up-domain-authentication). Verify actual receipt in an operator-controlled mailbox before launch; API acceptance alone is not delivery confirmation.
+
+SendGrid receives the outbox ID as a correlation value, not an idempotency guarantee. If a request succeeds at the provider but its response is lost, a retry can produce a duplicate notification. Resend is retained as an alternative (`MAIL_TRANSPORT=resend`, `RESEND_API_KEY`) and receives a stable provider idempotency key. Neither mail retry path reruns an evaluation.
 
 ```sh
 docker compose exec web node --experimental-strip-types lib/server/admin.ts outbox
