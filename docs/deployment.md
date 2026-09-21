@@ -1,8 +1,8 @@
-# Deploy and operate Comparison Lab
+# Deploy and operate Alhena Research Lab
 
 ## Launch at evals.alhena.ai
 
-Use Docker Compose v2 on a dedicated Linux host with at least 4 GB RAM, or use the shared-host configuration below for a larger host running Jarvis alongside Comparison Lab. This app requires persistent storage; a static website host alone is insufficient. New evaluations also require a long-running browser worker, which can be enabled separately after the public report library and onboarding are running.
+Use Docker Compose v2 on a dedicated Linux host with at least 4 GB RAM, or use the shared-host configuration below for a larger host running Jarvis alongside Alhena Research Lab. This app requires persistent storage; a static website host alone is insufficient. New evaluations also require a long-running browser worker, which can be enabled separately after the public report library and onboarding are running.
 
 1. Clone `https://github.com/mbahacker/comparison-lab.git` onto the selected host and use a reviewed commit. Create a fresh production data volume; do not copy the local preview database, accounts, or queued test requests.
 2. Copy `.env.example` to `.env`, restrict its permissions (`chmod 600 .env`), and configure all required values. `APP_URL` is `https://evals.alhena.ai`; approval emails go to `ashu@alhena.ai`. Set `MAIL_TRANSPORT=sendgrid` and configure `SENDGRID_API_KEY`. Confirm that `MAIL_FROM` is authorized by the authenticated SendGrid sender domain. Enter secrets on the host or through its secret manager, never in Git or chat.
@@ -120,7 +120,7 @@ The profile explicitly allows `chroot`, which Chromium needs inside its sandbox 
 ## First production verification
 
 - Request an OTP using an operator-controlled work mailbox. Confirm real delivery and expiry.
-- Submit a deliberate comparison with six verified deployments. Inspect the approval email and confirm opening it alone starts nothing.
+- Submit a deliberate comparison with six verified deployments and at least one storefront requiring new analysis. Inspect the approval email and confirm opening it alone starts nothing.
 - Approve that specific request. Confirm requester notification, queue claim, heartbeat and a complete capture.
 - Inspect all evidence, authorship metadata, judge and auditor decisions, publication, and report-ready email.
 - If a storefront lacks unambiguous AI message-author markers, the worker stops with `needs_adapter`. Configure and review its adapter rather than weakening evidence requirements.
@@ -142,7 +142,15 @@ docker compose exec web node --experimental-strip-types lib/server/admin.ts flus
 
 OTP requests may attempt their own bounded immediate delivery. Development file delivery is disabled when `NODE_ENV=production`.
 
-## Review and recovery
+## Report access and recent analysis
+
+Summaries and the rubric are public. Full report details, JSON downloads and available HTML downloads require a verified work-email session. Personal email addresses are rejected for both report access and comparison submission. Detail views and downloads create private access records and notify `ADMIN_EMAIL` with the report title and viewer email in the subject. Repeated notifications are limited to once per viewer, report and action in a rolling 24-hour window; access counts still increase. Page previews and summary requests do not trigger notifications.
+
+Known provider websites can prefill prior customer storefronts. Reuse requires the same protocol and pinned, compatible evidence captured within 30 days. The server checks original capture age when planning, claiming and validating a run. Reused results retain source hashes, dates and limitations; publication never resets their age. Exact fresh matches open an existing report without creating evaluation work. Older matches remain visible but require fresh testing. The imported seed has an explicit historical attribution exception: its immutable source did not record per-turn AI-author proof, and reuse does not claim new verification.
+
+The initial evidence was public in this repository before access gating, so those historical copies cannot be made private by the web gate. Newly generated reports live in private runtime storage. Do not copy them into `public/` or Git.
+
+## Request recovery
 
 ```sh
 docker compose exec web node --experimental-strip-types lib/server/admin.ts list

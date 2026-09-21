@@ -8,7 +8,7 @@ export function config() {
     dataDir: path.resolve(/* turbopackIgnore: true */ process.env.DATA_DIR || './data'),
     contentDir: path.resolve(/* turbopackIgnore: true */ process.env.CONTENT_DIR || './content/reports'),
     adminEmail: process.env.ADMIN_EMAIL || 'ashu@alhena.ai',
-    mailFrom: process.env.MAIL_FROM || 'Comparison Lab <reports@alhena.ai>',
+    mailFrom: process.env.MAIL_FROM || 'Alhena Research Lab <reports@alhena.ai>',
     mailTransport: process.env.MAIL_TRANSPORT || (production ? 'sendgrid' : 'file'),
     sendgridKey: process.env.SENDGRID_API_KEY || '',
     resendKey: process.env.RESEND_API_KEY || '',

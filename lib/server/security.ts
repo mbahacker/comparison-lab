@@ -28,12 +28,23 @@ export function multilineText(value: unknown, label: string, max = 2000): string
   if (!result || result.length > max || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(result)) throw new ApiError(400, `${label} must contain 1–${max} characters.`);
   return result;
 }
-const personalDomains = new Set(['gmail.com', 'googlemail.com', 'yahoo.com', 'ymail.com', 'hotmail.com', 'outlook.com', 'live.com', 'msn.com', 'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com', 'mail.com', 'gmx.com', 'yandex.com', 'qq.com', '163.com', '126.com', 'mailinator.com', 'guerrillamail.com', 'tempmail.com', '10minutemail.com', 'yopmail.com']);
-export function workEmail(value: unknown) {
-  const email = text(value, 'Work email', 5, 254).toLowerCase();
-  if (!/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-z0-9](?:[a-z0-9.-]*[a-z0-9])?\.[a-z]{2,}$/i.test(email)) throw new ApiError(400, 'Enter a valid work email.');
-  if (personalDomains.has(email.split('@')[1])) throw new ApiError(400, 'Please use your company email, rather than a personal or disposable email address.');
+const personalDomains = new Set(['gmail.com', 'googlemail.com', 'yahoo.com', 'ymail.com', 'hotmail.com', 'outlook.com', 'live.com', 'msn.com', 'icloud.com', 'me.com', 'aol.com', 'proton.me', 'protonmail.com', 'mail.com', 'gmx.com', 'yandex.com', 'qq.com', '163.com', '126.com']);
+const disposableDomains = new Set(['mailinator.com', 'guerrillamail.com', 'guerrillamail.net', 'guerrillamail.org', 'sharklasers.com', 'grr.la', 'tempmail.com', 'temp-mail.org', '10minutemail.com', 'yopmail.com', 'yopmail.fr', 'yopmail.net', 'dispostable.com', 'trashmail.com', 'getnada.com', 'maildrop.cc']);
+const domainMatches = (domain: string, domains: Set<string>) => [...domains].some(blocked => domain === blocked || domain.endsWith(`.${blocked}`));
+export function reportEmail(value: unknown) {
+  const email = text(value, 'Email', 5, 254).toLowerCase();
+  const [local, domain, extra] = email.split('@');
+  if (!local || !domain || extra !== undefined || local.length > 64 || local.startsWith('.') || local.endsWith('.') || local.includes('..') || !/^[a-z0-9.!#$%&'*+/=?^_`{|}~-]+$/i.test(local) || !/^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?)*\.[a-z]{2,}$/i.test(domain)) throw new ApiError(400, 'Enter a valid email address.');
+  if (domainMatches(domain, disposableDomains)) throw new ApiError(400, 'Please use a non-disposable email address.');
   return email;
+}
+export function workEmail(value: unknown) {
+  const email = reportEmail(value);
+  if (domainMatches(email.split('@')[1], personalDomains)) throw new ApiError(400, 'Please use your company email, rather than a personal email address.');
+  return email;
+}
+export function workEmailEligible(value: unknown) {
+  try { workEmail(value); return true; } catch { return false; }
 }
 
 // Workers also resolve DNS and enforce network egress restrictions. API validation alone is not an SSRF boundary.
@@ -88,7 +99,7 @@ export function sessionUser(request: Request): User | null {
 }
 export function requireUser(request: Request) {
   const user = sessionUser(request);
-  if (!user) throw new ApiError(401, 'Verify your work email to continue.');
+  if (!user) throw new ApiError(401, 'Verify your email to continue.');
   return user;
 }
 export function sessionCookie(raw: string, maxAge = 604800) {
@@ -97,9 +108,25 @@ export function sessionCookie(raw: string, maxAge = 604800) {
 export function requireOrigin(request: Request) {
   const origin = request.headers.get('origin');
   const expected = new URL(config().appUrl).origin;
-  if (origin && origin !== expected || !origin && config().production) throw new ApiError(403, 'This request must come from Comparison Lab.');
+  if (origin && origin !== expected || !origin && config().production) throw new ApiError(403, 'This request must come from Alhena Research Lab.');
   const site = request.headers.get('sec-fetch-site');
   if (site === 'cross-site') throw new ApiError(403, 'Cross-site requests are not accepted.');
+}
+// Protected GETs can enqueue access notifications. Reject cross-origin embedding,
+// navigation and prefetching before reading evidence or recording an access.
+export function requireReportOrigin(request: Request) {
+  const expected = new URL(config().appUrl).origin;
+  const origin = request.headers.get('origin');
+  const site = request.headers.get('sec-fetch-site');
+  const destination = request.headers.get('sec-fetch-dest');
+  const purpose = `${request.headers.get('purpose') || ''} ${request.headers.get('sec-purpose') || ''}`;
+  if (origin && origin !== expected || site && !['same-origin', 'none'].includes(site) || destination && !['empty', 'document'].includes(destination) || /prefetch/i.test(purpose)) throw new ApiError(403, 'Open this report from Alhena Research Lab.');
+  const referer = request.headers.get('referer');
+  if (referer) {
+    let refererOrigin: string;
+    try { refererOrigin = new URL(referer).origin; } catch { throw new ApiError(403, 'Open this report from Alhena Research Lab.'); }
+    if (refererOrigin !== expected) throw new ApiError(403, 'Open this report from Alhena Research Lab.');
+  }
 }
 export function requireWorker(request: Request) {
   const secret = config().workerSecret;

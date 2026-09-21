@@ -5,6 +5,7 @@ import { db } from './db.ts';
 import { hash, iso } from './security.ts';
 import { ApiError, type Provider, type Row } from './model.ts';
 import { deriveCheckedScore } from '../../worker/scoring.mjs';
+import { authorizedReuse, auditClassification, reuseLimitations, reuseSources, evidenceHash, reusableAt } from '../../worker/reuse.mjs';
 
 export const SOURCE_COMMIT = '19b1420d2520d48baa52be81ac33fc4b9bd0ff8b';
 export const PROTOCOL_ID = 'quality-pilot-v1';
@@ -56,11 +57,12 @@ function validateAuthorProof(turn: Row, conversation: Row) {
 }
 
 /** Publication checks are stricter than the renderer. The renderer never creates a score. */
-export function validateEvidence(evidence: any, providers: Provider[], snapshot: Row, privateValues: string[] = []) {
+export function validateEvidence(evidence: any, providers: Provider[], snapshot: Row, privateValues: string[] = [], authorizedReusedConversations: Row[] = [], now = Date.now()) {
   object(evidence, 'the result must be an object.');
   if (evidence.schema_version !== 'comparison-lab-evidence/v1') fail('unsupported schema version.');
   object(evidence.study, 'study metadata is required.');
   if (evidence.study.protocol_id !== PROTOCOL_ID || evidence.study.source_commit !== SOURCE_COMMIT || evidence.study.quality_only !== true) fail('the pinned quality protocol must match.');
+  if (!Array.isArray(evidence.study.providers) || evidenceHash(evidence.study.providers) !== evidenceHash(providers)) fail('published provider websites and deployments must match the approved request.');
   if (!nonempty(evidence.study.generated_at) || Number.isNaN(Date.parse(evidence.study.generated_at))) fail('completion timestamp is required.');
   if (!Array.isArray(evidence.study.limitations) || !evidence.study.limitations.length) fail('study limitations must be disclosed.');
   object(evidence.rubric, 'rubric metadata is required.');
@@ -72,12 +74,18 @@ export function validateEvidence(evidence: any, providers: Provider[], snapshot:
   }
   if (!Array.isArray(evidence.live_conversations) || evidence.live_conversations.length !== 12) fail('exactly 12 complete conversations are required.');
   if (evidence.validation?.passed !== true || evidence.audit?.trusted !== true) fail('a successful separate audit is required.');
+  for (const limitation of reuseLimitations(authorizedReusedConversations)) if (!evidence.study.limitations.includes(limitation)) fail('inherited source limitations must remain visible.');
+  if (authorizedReusedConversations.length && (!Array.isArray(evidence.provenance?.reused_sources) || evidenceHash(evidence.provenance.reused_sources) !== evidenceHash(reuseSources(authorizedReusedConversations)))) fail('published-source reuse provenance must match the approved plan.');
   const coverage = new Set<string>(); const ids = new Set<string>();
   let turnCount = 0; let checkCount = 0; let auditAgreed = 0;
   for (const conversation of evidence.live_conversations) {
     object(conversation, 'conversation must be an object.');
     if (!nonempty(conversation.id) || ids.has(conversation.id)) fail('conversation IDs must be unique.');
     ids.add(conversation.id);
+    let reused: Row | null;
+    try { reused = authorizedReuse(conversation, authorizedReusedConversations); } catch { fail('cached conversation differs from the approved immutable published source.'); }
+    if (reused && !reusableAt(conversation.captured_at, now)) fail('cached capture is older than 30 days or has a future timestamp.');
+    const historical = reused?.historicalAuthorVerification === true;
     const provider = providers.find(p => p.name === conversation.vendor);
     const customer = provider?.customers.find(c => c.name === conversation.store && sameWebsite(c.website, conversation.url));
     if (!provider || !customer) fail('a conversation does not match an approved deployment.');
@@ -93,7 +101,7 @@ export function validateEvidence(evidence: any, providers: Provider[], snapshot:
       const turn = conversation.turns[i];
       if (turn.turn !== i + 1 || turn.question !== snapshot.questions[mode][i]) fail('the exact fixed question sequence must be preserved.');
       if (!nonempty(turn.reply) || !nonempty(turn.reply_as_judged) || turn.response_complete !== true || turn.speaker !== 'ai' || turn.handover !== false || turn.unsent !== false) fail('incomplete or human-handled conversations cannot be scored as a complete run.');
-      validateAuthorProof(turn, conversation);
+      if (!reused) validateAuthorProof(turn, conversation);
       if (turn.complete_ms !== null && (!Number.isFinite(turn.complete_ms) || turn.complete_ms < 0)) fail('invalid response timing.');
       turnCount++;
     }
@@ -107,13 +115,14 @@ export function validateEvidence(evidence: any, providers: Provider[], snapshot:
       const check = matches[0];
       if (check.points !== criterion.points || check.dimension !== criterion.dimension || typeof check.pass !== 'boolean' || typeof check.judge_pass !== 'boolean' || check.awarded !== (check.pass ? criterion.points : 0)) fail(`invalid score arithmetic for ${criterion.id}.`);
       if (typeof check.evidence !== 'string' || typeof check.primary?.pass !== 'boolean' || typeof check.primary?.evidence !== 'string' || typeof check.final?.pass !== 'boolean' || check.final.pass !== check.judge_pass || typeof check.final.evidence !== 'string' || check.evidence !== check.final.evidence) fail(`primary and final judge evidence is required for ${criterion.id}.`);
-      if (!['AGREE', 'FP', 'FN'].includes(check.audit?.classification) || !nonempty(check.audit?.reason) || typeof check.audit?.evidence !== 'string') fail(`separate audit evidence is required for ${criterion.id}.`);
+      const classification = auditClassification(check, historical);
+      if (!['AGREE', 'FP', 'FN'].includes(classification) || !nonempty(check.audit?.reason) || typeof check.audit?.evidence !== 'string') fail(`separate audit evidence is required for ${criterion.id}.`);
       const expectedClassification = check.primary.pass === check.final.pass ? 'AGREE' : check.primary.pass ? 'FP' : 'FN';
-      if (check.audit.classification !== expectedClassification) fail(`audit classification is inconsistent for ${criterion.id}.`);
-      if (check.audit.classification === 'AGREE') {
+      if (classification !== expectedClassification) fail(`audit classification is inconsistent for ${criterion.id}.`);
+      if (classification === 'AGREE') {
         auditAgreed++;
         if (check.final.evidence !== check.primary.evidence) fail(`an agreeing audit changed primary evidence for ${criterion.id}.`);
-      } else if (check.final.evidence !== check.audit.evidence) fail(`audit correction evidence was not preserved for ${criterion.id}.`);
+      } else if (check.final.evidence !== check.audit.evidence && !(historical && classification === 'FP' && check.audit.classification === 'FALSE_POSITIVE' && check.final.evidence === check.primary.evidence)) fail(`audit correction evidence was not preserved for ${criterion.id}.`);
       if (check.primary.pass && !quoteInConversation(check.primary.evidence, conversation.turns)) fail(`primary passing quote is not in the captured judging transcript for ${criterion.id}.`);
       if (check.final.pass && !quoteInConversation(check.final.evidence, conversation.turns)) fail(`final passing quote is not in the captured judging transcript for ${criterion.id}.`);
       if (check.final.pass && !quoteInConversation(check.audit.evidence, conversation.turns)) fail(`auditor passing quote is not in the captured judging transcript for ${criterion.id}.`);
@@ -137,6 +146,7 @@ export function validateEvidence(evidence: any, providers: Provider[], snapshot:
     for (const [dimension, expected] of Object.entries(dimensionScores)) if (conversation.dimension_scores?.[dimension] !== expected) fail('dimension score arithmetic disagrees.');
   }
   if (coverage.size !== 12 || turnCount !== 120 || checkCount !== 156) fail('complete coverage is required.');
+  if (authorizedReusedConversations.some(c => !ids.has(c.id))) fail('an approved reused conversation is missing.');
   const agreement = Math.round(auditAgreed / checkCount * 1000) / 10;
   if (agreement < snapshot.minimumAuditAgreement || evidence.audit.agreement_pct !== agreement || evidence.audit.verdicts !== checkCount || evidence.audit.agreed !== auditAgreed || evidence.audit.corrected !== checkCount - auditAgreed) fail('audit agreement or decision totals do not reconcile, or agreement is below the publication threshold.');
   const serialized = JSON.stringify(evidence);
@@ -168,7 +178,7 @@ export function reportSummary(slug: string, evidence: Row, publishedAt = iso(), 
     summary: 'A fixed-rubric evaluation of six live storefront deployments, with complete conversations and a separate AI judge and audit.',
     description: 'Shopping and support quality across six live storefronts, with full conversations, fixed criteria, and a separate AI judge and audit.',
     limitations: evidence.study?.limitations || [],
-    qualityOnly: true, commissionedBy: evidence.study?.commissioned_by || 'Comparison Lab / Alhena', hasHtml,
+    qualityOnly: true, commissionedBy: evidence.study?.commissioned_by || 'Alhena Research Lab', hasHtml,
   };
 }
 

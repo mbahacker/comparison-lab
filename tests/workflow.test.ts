@@ -43,9 +43,9 @@ async function login(email: string, name = 'Test Requester') {
   assert.match(verified.response.headers.get('set-cookie')!, /; HttpOnly; SameSite=Lax;/);
   return { cookie: verified.response.headers.get('set-cookie')!.split(';')[0], code };
 }
-function providers() {
+function providers(scenario = '') {
   const seed = seedEvidence();
-  return ['Alhena', 'Gorgias'].map(name => ({ name, website: `https://${name.toLowerCase()}.ai/`, customers: seed.live_conversations.filter((c: any) => c.vendor === name && c.mode === 'shopping').map((c: any) => ({ name: c.store, website: c.url })) }));
+  return ['Alhena', 'Gorgias'].map(name => ({ name, website: `https://${name.toLowerCase()}${scenario ? `-${scenario}` : ''}.benchmark-business.example/`, customers: seed.live_conversations.filter((c: any) => c.vendor === name && c.mode === 'shopping').map((c: any) => ({ name: c.store, website: c.url })) }));
 }
 function completeEvidence() {
   const seed = seedEvidence();
@@ -68,7 +68,7 @@ function completeEvidence() {
     if (check.audit.classification !== 'AGREE' || check.final.pass) check.audit.evidence = check.final.evidence;
     check.evidence = check.final.evidence;
   }
-  return { schema_version: 'comparison-lab-evidence/v1', study: { ...seed.study, protocol_id: 'quality-pilot-v1', generated_at: new Date().toISOString() }, rubric: { ...seed.rubric, criteria: protocol().criteria, source_commit: seed.study.source_commit }, live_conversations: seed.live_conversations, validation: { passed: true }, audit: { trusted: true, agreement_pct: 99.4, verdicts: 156, agreed: 155, corrected: 1 }, provenance: { fixture: 'Test-only transport fixture based on seed transcripts and scores, with controlled quote fields; not research and never published outside temporary test directories.' } };
+  return { schema_version: 'comparison-lab-evidence/v1', study: { ...seed.study, providers: providers(), protocol_id: 'quality-pilot-v1', generated_at: new Date().toISOString() }, rubric: { ...seed.rubric, criteria: protocol().criteria, source_commit: seed.study.source_commit }, live_conversations: seed.live_conversations, validation: { passed: true }, audit: { trusted: true, agreement_pct: 99.4, verdicts: 156, agreed: 155, corrected: 1 }, provenance: { fixture: 'Test-only transport fixture based on seed transcripts and scores, with controlled quote fields; not research and never published outside temporary test directories.' } };
 }
 
 test('the complete request lifecycle is private, approval-gated, fenced and publish-once', async t => {
@@ -135,11 +135,12 @@ test('the complete request lifecycle is private, approval-gated, fenced and publ
     assert.equal(publicReport.response.status, 200);
     assert.deepEqual(publicReport.data.report.scores, [{ vendor: 'Alhena', shopping: 96, support: 100 }, { vendor: 'Gorgias', shopping: 76.7, support: 82.7 }]);
     assert.equal(JSON.stringify(publicReport.data).includes('owner@benchmark-business.example'), false);
-    assert.equal(publicReport.data.evidence.publication.counts.turns, 120);
+    assert.equal(publicReport.data.evidence, undefined);
+    assert.equal((await call(`reports/${slug}/details`, { cookie: owner.cookie })).data.evidence.publication.counts.turns, 120);
     assert.equal((await call(`requests/${id}`, { cookie: owner.cookie })).data.request.status, 'published');
     assert.equal((await call('worker/complete', { method: 'POST', worker: true, body: { ...lease(current), evidence: completeEvidence() } })).response.status, 409);
     assert.equal(messages().filter(m => m.to === 'owner@benchmark-business.example' && m.subject.startsWith('Your comparison report is published')).length, 1);
-    assert.equal((await call(`reports/${slug}/evidence`)).response.headers.get('content-disposition')?.includes('attachment'), true);
+    assert.equal((await call(`reports/${slug}/evidence`, { cookie: owner.cookie })).response.headers.get('content-disposition')?.includes('attachment'), true);
   });
   await t.test('local administration never retries a published report', async () => {
     await assert.rejects(adminCommand('retry', id), /approved, stopped, unpublished/);
@@ -221,7 +222,7 @@ test('the real worker evidence assembler produces the server publication contrac
 
 test('rejection cannot enqueue work, and a renewed review link revokes its predecessor', async () => {
   const owner = await login('reject@benchmark-business.example');
-  const submitted = await call('requests', { method: 'POST', cookie: owner.cookie, body: { providers: providers(), consent: true } });
+  const submitted = await call('requests', { method: 'POST', cookie: owner.cookie, body: { providers: providers('rejection'), consent: true } });
   const id = submitted.data.request.id;
   const reviewMail = messages().find(m => m.text.includes(`Requester: Test Requester <reject@benchmark-business.example>`));
   const oldToken = /\/review\/([A-Za-z0-9_-]+)/.exec(reviewMail.text)![1];
@@ -236,7 +237,7 @@ test('rejection cannot enqueue work, and a renewed review link revokes its prede
 
 test('unsupported captures stay private, notify requester and can be deliberately retried by an operator', async () => {
   const owner = await login('paused@benchmark-business.example');
-  const submitted = await call('requests', { method: 'POST', cookie: owner.cookie, body: { providers: providers(), consent: true } });
+  const submitted = await call('requests', { method: 'POST', cookie: owner.cookie, body: { providers: providers('unsupported'), consent: true } });
   const id = submitted.data.request.id;
   const reviewMail = messages().find(m => m.text.includes('Requester: Test Requester <paused@benchmark-business.example>'));
   const reviewToken = /\/review\/([A-Za-z0-9_-]+)/.exec(reviewMail.text)![1];

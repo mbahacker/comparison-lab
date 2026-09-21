@@ -5,7 +5,7 @@ export async function api<T=Record<string, unknown>>(path:string, init?:RequestI
   return body as T;
 }
 export function post<T=Record<string, unknown>>(path:string,body:unknown){return api<T>(path,{method:"POST",body:JSON.stringify(body)});}
-export type ReportSummary={slug:string;title:string;description:string;publishedAt:string;vendors:string[];storeCount:number;conversationCount:number;turnCount:number;criterionCount:number;protocol:string;commissionedBy?:string;scores:{vendor:string;shopping:number;support:number}[];limitations?:string[]};
+export type ReportSummary={slug:string;title:string;description:string;publishedAt:string;vendors:string[];storeCount:number;conversationCount:number;turnCount:number;criterionCount:number;protocol:string;commissionedBy?:string;hasHtml?:boolean;scores:{vendor:string;shopping:number;support:number}[];limitations?:string[]};
 export type Customer={name:string;website:string};
 export type Vendor={name:string;website:string;customers:Customer[]};
 export type ComparisonInput={vendors:Vendor[];notes?:string;consent:boolean};

@@ -7,7 +7,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { QualityDashboard } from "@/components/lab/quality-charts";
 import { ShareReportButton } from "@/components/lab/share-report";
-import { api, ReportSummary, score, date } from "@/lib/client";
+import { ReportAccess } from "@/components/lab/report-access";
+import { ReportSummary, score, date } from "@/lib/client";
 type Criterion = {
   id: string;
   mode: string;
@@ -42,6 +43,7 @@ type Conversation = {
   checks: Check[];
   capture_metadata: unknown;
   source_capture_sha256?: string;
+  reuse?: { sourceReportSlug: string; sourceConversationId: string; capturedAt: string; date: string; sourceLimitations?: string[]; historicalAuthorVerification?: boolean };
   turns: {
     turn: number;
     question: string;
@@ -67,6 +69,10 @@ type Evidence = {
   [key: string]: unknown;
 };
 export function ReportExplorer({ slug }: { slug: string }) {
+  return <ReportAccess slug={slug}>{(onVerificationRequired) => <DetailedReport slug={slug} onVerificationRequired={onVerificationRequired} />}</ReportAccess>;
+}
+function DetailedReport({ slug, onVerificationRequired }: { slug: string; onVerificationRequired: () => void }) {
+  const [downloadBusy, setDownloadBusy] = useState(false), [downloadError, setDownloadError] = useState("");
   const [report, setReport] = useState<ReportSummary | null>(null),
     [evidence, setEvidence] = useState<Evidence | null>(null),
     [error, setError] = useState(""),
@@ -75,15 +81,20 @@ export function ReportExplorer({ slug }: { slug: string }) {
     [target, setTarget] = useState(""),
     [chartMode, setChartMode] = useState<"shopping" | "support">("shopping");
   useEffect(() => {
-    api<{ report: ReportSummary; evidence: Evidence }>(
-      `/reports/${encodeURIComponent(slug)}`,
-    )
+    fetch(`/api/reports/${encodeURIComponent(slug)}/details`, { credentials: "same-origin", cache: "no-store" })
+      .then(async response => {
+        if (response.status === 401 || response.status === 403) { onVerificationRequired(); return null; }
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "The detailed report could not be loaded.");
+        return data as { report: ReportSummary; evidence: Evidence };
+      })
       .then((d) => {
+        if (!d) return;
         setReport(d.report);
         setEvidence(d.evidence);
       })
       .catch((e) => setError(e.message));
-  }, [slug]);
+  }, [slug, onVerificationRequired]);
   useEffect(() => {
     function readLocation() {
       const params = new URLSearchParams(window.location.hash.slice(1));
@@ -131,6 +142,18 @@ export function ReportExplorer({ slug }: { slug: string }) {
   function changeChartMode(mode: "shopping" | "support") {
     setChartMode(mode);
     updateLocation("overview", "", mode);
+  }
+  async function download(format: "evidence" | "html") {
+    setDownloadBusy(true); setDownloadError("");
+    try {
+      const response = await fetch(`/api/reports/${encodeURIComponent(slug)}/${format}`, { credentials: "same-origin", cache: "no-store" });
+      if (response.status === 401 || response.status === 403) { onVerificationRequired(); return; }
+      if (!response.ok) { const data = await response.json().catch(() => ({})); throw new Error(data.error || "The download could not be completed."); }
+      const url = URL.createObjectURL(await response.blob());
+      const link = document.createElement("a"); link.href = url; link.download = `${slug}-${format === "html" ? "report.html" : "evidence.json"}`;
+      document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (e) { setDownloadError(e instanceof Error ? e.message : "The download could not be completed."); }
+    finally { setDownloadBusy(false); }
   }
   useEffect(() => {
     if (tab === "conversations" && target) {
@@ -182,21 +205,20 @@ export function ReportExplorer({ slug }: { slug: string }) {
           <p className="intro">{report.description}</p>
           <p className="private-note">
             Commissioned by{" "}
-            {report.commissionedBy || "the Comparison Lab operator"}. Separate
+            {report.commissionedBy || "the Alhena Research Lab operator"}. Separate
             AI judging and audit.
           </p>
         </div>
         <div className="report-actions">
           <ShareReportButton title={report.title} />
-          <a
-            href={`/api/reports/${encodeURIComponent(slug)}/evidence`}
-            className="button outline-button"
-          >
+          <Button variant="outline" disabled={downloadBusy} onClick={() => download("evidence")}>
             <Download size={16} />
             Evidence JSON
-          </a>
+          </Button>
+          {report.hasHtml && <Button variant="outline" disabled={downloadBusy} onClick={() => download("html")}><Download size={16} />Full report HTML</Button>}
         </div>
       </div>
+      {downloadError && <div className="error-box" role="alert">{downloadError}</div>}
       <div className="report-stats">
         {[
           [report.storeCount, "Live storefronts"],
@@ -515,7 +537,7 @@ function ConversationPanel({
           <strong>{r.store}</strong>
           <small>
             {r.vendor} · {r.mode} ·{" "}
-            {r.kind === "archived" ? "Archived regrade" : "Live capture"}
+            {r.reuse ? "Reused published capture" : r.kind === "archived" ? "Archived regrade" : "Live capture"}
           </small>
         </div>
         <b>
@@ -524,6 +546,7 @@ function ConversationPanel({
         </b>
       </summary>
       <div className="conversation-content">
+        {r.reuse && <div className="caveat"><strong>Previously evaluated on {date(r.reuse.capturedAt || r.reuse.date)}.</strong><p>This conversation and its scoring were reused from <Link href={`/reports/${encodeURIComponent(r.reuse.sourceReportSlug)}#${new URLSearchParams({view:"conversations",conversation:r.reuse.sourceConversationId})}`}>the original report</Link>. It was not rerun for this comparison. The original capture conditions and limitations still apply.</p>{r.reuse.historicalAuthorVerification && <p>Attribution is inherited from the original report. It did not record per-turn AI-author proof, and no new verification was performed.</p>}</div>}
         <ShareReportButton
           title={`${r.store} ${r.mode} conversation`}
           label="Copy conversation link"
@@ -592,6 +615,7 @@ function ConversationPanel({
             date: r.date,
             metadata: r.capture_metadata,
             sha256: r.source_capture_sha256,
+            reuse: r.reuse,
           }}
         />
       </div>

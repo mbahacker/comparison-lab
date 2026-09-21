@@ -10,15 +10,15 @@ export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL || "http://127.0.0.1:3100"),
   openGraph: {
     type: "website",
-    siteName: "Alhena Comparison Lab",
+    siteName: "Alhena Research Lab",
     title: "Put ecommerce AI to the test",
     description:
       "Compare shopping and support quality. Inspect every conversation or request your own comparison.",
   },
   twitter: { card: "summary_large_image" },
   title: {
-    default: "Alhena Comparison Lab · Put ecommerce AI to the test",
-    template: "%s · Comparison Lab",
+    default: "Alhena Research Lab · Put ecommerce AI to the test",
+    template: "%s · Alhena Research Lab",
   },
   description:
     "Explore AI shopping and support comparisons, inspect the evidence, or request a new evaluation using the same published rubric.",
@@ -44,7 +44,7 @@ export default function RootLayout({
             <Link
               href="/"
               className="wordmark"
-              aria-label="Comparison Lab home"
+              aria-label="Alhena Research Lab home"
             >
               <img
                 src="/brand/alhena-logo.svg"
@@ -53,7 +53,7 @@ export default function RootLayout({
                 height="33"
               />
               <span className="wordmark-divider" />
-              <span className="lab-wordmark">Comparison Lab</span>
+              <span className="lab-wordmark">Research Lab</span>
             </Link>
             <nav aria-label="Main navigation">
               <Link href="/">Reports</Link>
@@ -73,7 +73,7 @@ export default function RootLayout({
               width="93"
               height="27"
             />
-            <span>Comparison Lab</span>
+            <span>Research Lab</span>
           </p>
           <div>
             <Link href="/methodology">Methodology</Link>

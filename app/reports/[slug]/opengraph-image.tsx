@@ -70,7 +70,7 @@ export default async function Image({
               height={42}
             />
             <span style={{ color: "#64748B" }}>/</span>
-            <span>Comparison Lab</span>
+            <span>Research Lab</span>
           </div>
           <div
             style={{
@@ -169,7 +169,7 @@ export default async function Image({
           }}
         >
           Commissioned by{" "}
-          {String(report.commissionedBy || "Comparison Lab / Alhena").slice(
+          {String(report.commissionedBy || "Alhena Research Lab / Alhena").slice(
             0,
             55,
           )}{" "}

@@ -44,7 +44,7 @@ next-env.d.ts
 /outputs/
 /work/
 
-# Comparison Lab private runtime and local tool state
+# Alhena Research Lab private runtime and local tool state
 .env*
 !.env.example
 **/node_modules/

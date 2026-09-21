@@ -1,16 +1,18 @@
-# Comparison Lab
+# Alhena Research Lab
 
 A public evidence library and an approval-gated service for comparing AI shopping and support providers. Operated by Alhena; the project does not claim institutional independence or Gorgias endorsement.
 
 ## What people can do
 
-1. Browse published comparisons and inspect every captured conversation, criterion decision, audit note and disclosed limitation.
+1. Browse public comparison summaries and the rubric. Verify a work email address to inspect detailed conversations, scoring decisions and evidence downloads. Detail views and downloads notify the operator with the report title and viewer email; repeated access notifications are limited per viewer, report and action.
 2. Enter their name and work email, then verify mailbox ownership with a six-digit OTP.
-3. Enter two provider names and websites, plus three customer names and live storefront URLs for each provider. Company entry is freeform.
-4. Submit the comparison for review. `ashu@alhena.ai` receives a private approval link. Opening the link has no side effects; an explicit approval confirms all six provider deployments and queues one run.
+3. Enter two provider names and websites, plus three customer names and live storefront URLs for each provider. Company entry is freeform; known providers can prefill their previously evaluated storefronts. Compatible published analysis captured within the last 30 days is reused with its original dates and limitations. An existing exact comparison opens its report instead of queuing duplicate work.
+4. Submit the comparison for review. `ashu@alhena.ai` receives a private approval link. Opening the link has no side effects; an explicit approval confirms all six provider deployments and queues the missing work, or links a matching report published in the meantime.
 5. Receive an approval or rejection email. Approved requests run asynchronously; complete evidence is validated and published automatically, followed by a report-ready email.
 
 The initial library includes the September 20, 2026 Alhena/Gorgias study, its original scores, full evidence and original session-isolation caveat. It is an imported historical study, not a new run performed by this application.
+
+The detailed-evidence gate is enforced by the web API, including JSON and HTML downloads. It does not erase the initial study's already-public source files or Git history. Historical evidence that was public before this gate may still be available outside the website. Future runtime reports are held in private server storage and served through the authenticated endpoints.
 
 ## Evaluation scope
 
@@ -112,6 +114,6 @@ This release targets a single-host SQLite deployment. Do not run multiple indepe
 
 ## Source and privacy
 
-Published evidence excludes requester contact information, OTPs, approval links and private operational notes. Contact details are used only for verification, review and transactional updates. See the application's `/privacy` page.
+Published evidence excludes requester contact information, OTPs, approval links and private operational notes. Contact details are used for verification, review, transactional updates and private report-access notifications to the operator. See the application's `/privacy` page.
 
 Public source availability is for inspection. No project-wide license is granted to third-party Gorgias material. Third-party assets and dependencies remain under their own licenses; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).

@@ -6,7 +6,7 @@ import { getReport, SEED_SLUG } from "@/lib/server/evidence";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const alt =
-  "Alhena Comparison Lab: shopping and support quality, with inspectable evidence";
+  "Alhena Research Lab: shopping and support quality, with inspectable evidence";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -49,7 +49,7 @@ export default function Image() {
               height={42}
             />
             <span style={{ color: "#64748B" }}>/</span>
-            <span>Comparison Lab</span>
+            <span>Research Lab</span>
           </div>
           <div
             style={{
@@ -61,7 +61,7 @@ export default function Image() {
               fontSize: 19,
             }}
           >
-            PUBLIC EVIDENCE
+            PUBLISHED RESEARCH
           </div>
         </div>
         <div

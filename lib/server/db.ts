@@ -53,6 +53,13 @@ export function db() {
       summary_json TEXT NOT NULL, evidence_path TEXT NOT NULL, evidence_sha256 TEXT NOT NULL,
       published_at TEXT NOT NULL
     );
+    CREATE TABLE IF NOT EXISTS report_access (
+      user_id TEXT NOT NULL REFERENCES users(id), report_slug TEXT NOT NULL,
+      action TEXT NOT NULL CHECK (action IN ('view', 'download')),
+      access_count INTEGER NOT NULL, first_access_at TEXT NOT NULL, last_access_at TEXT NOT NULL,
+      last_notified_at INTEGER NOT NULL, notification_count INTEGER NOT NULL,
+      PRIMARY KEY (user_id, report_slug, action)
+    );
     CREATE TABLE IF NOT EXISTS outbox (
       id TEXT PRIMARY KEY, event_key TEXT NOT NULL UNIQUE, recipient TEXT NOT NULL,
       subject TEXT NOT NULL, text_body TEXT NOT NULL, html_body TEXT NOT NULL,
@@ -67,6 +74,8 @@ export function db() {
     for (const column of ['notes', 'consent_at', 'attribution_confirmed_at']) {
       if (!requestColumns.has(column)) connection.exec(`ALTER TABLE requests ADD COLUMN ${column} TEXT`);
     }
+    const jobColumns = new Set((connection.prepare('PRAGMA table_info(jobs)').all() as { name: string }[]).map(column => column.name));
+    if (!jobColumns.has('reuse_json')) connection.exec('ALTER TABLE jobs ADD COLUMN reuse_json TEXT');
     connection.exec('COMMIT');
   } catch (error) { connection.exec('ROLLBACK'); throw error; }
   try { fs.chmodSync(filename, 0o600); } catch { /* Some volume drivers omit chmod. */ }

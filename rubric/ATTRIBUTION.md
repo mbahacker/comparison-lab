@@ -1,6 +1,6 @@
 # Rubric source and boundaries
 
-The evaluation rubric and fixed questions were published by **Gorgias** in `gorgias/ai-agent-benchmark`. Comparison Lab applies the pinned quality criteria to submitted storefronts; it is not endorsed by Gorgias or an official Gorgias leaderboard.
+The evaluation rubric and fixed questions were published by **Gorgias** in `gorgias/ai-agent-benchmark`. Alhena Research Lab applies the pinned quality criteria to submitted storefronts; it is not endorsed by Gorgias or an official Gorgias leaderboard.
 
 - Canonical commit: `19b1420d2520d48baa52be81ac33fc4b9bd0ff8b`
 - [Canonical rubric](https://github.com/gorgias/ai-agent-benchmark/blob/19b1420d2520d48baa52be81ac33fc4b9bd0ff8b/runner/eval-rubric.md)

@@ -24,7 +24,7 @@ export async function generateMetadata({
   const metadataBase = new URL(config().appUrl);
   const url = new URL(`/reports/${encodeURIComponent(slug)}`, metadataBase)
     .href;
-  const description = `${report.description} ${report.storeCount} storefronts, ${report.turnCount} live test turns and ${report.criterionCount} published criteria. Quality pilot commissioned by ${report.commissionedBy || "Comparison Lab / Alhena"}.`;
+  const description = `${report.description} ${report.storeCount} storefronts, ${report.turnCount} live test turns and ${report.criterionCount} published criteria. Quality pilot commissioned by ${report.commissionedBy || "Alhena Research Lab / Alhena"}.`;
   const images = [
     {
       url: `${url}/opengraph-image`,
@@ -40,7 +40,7 @@ export async function generateMetadata({
     alternates: { canonical: url },
     openGraph: {
       type: "article",
-      siteName: "Alhena Comparison Lab",
+      siteName: "Alhena Research Lab",
       title: report.title,
       description,
       url,

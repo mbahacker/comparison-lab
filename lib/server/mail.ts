@@ -36,7 +36,7 @@ export function enqueueMail(eventKey: string, recipient: string, subject: string
     }
     return escapeHtml(line);
   };
-  const html = `<div style="font-family:Arial,sans-serif;max-width:640px;line-height:1.6;color:#142131"><h2>Comparison Lab</h2>${body.split('\n\n').map(p => `<p>${p.split('\n').map(lineHtml).join('<br>')}</p>`).join('')}<p style="color:#69727c;font-size:12px">This is a transactional message about your Comparison Lab request.</p></div>`;
+  const html = `<div style="font-family:Arial,sans-serif;max-width:640px;line-height:1.6;color:#142131"><h2>Alhena Research Lab</h2>${body.split('\n\n').map(p => `<p>${p.split('\n').map(lineHtml).join('<br>')}</p>`).join('')}<p style="color:#69727c;font-size:12px">This is a transactional message about your Alhena Research Lab request.</p></div>`;
   db().prepare('INSERT OR IGNORE INTO outbox (id,event_key,recipient,subject,text_body,html_body,next_attempt_at,created_at) VALUES (?,?,?,?,?,?,?,?)').run(id, eventKey, recipient, subject, body, html, Date.now(), iso());
   return id;
 }

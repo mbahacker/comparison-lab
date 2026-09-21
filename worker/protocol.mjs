@@ -16,6 +16,7 @@ export function assertJob(job) {
     const url = new URL(store.website);
     if (!store.name || !['http:', 'https:'].includes(url.protocol) || url.username || url.password) throw new Error('Invalid storefront');
   }
+  if (job.reusedConversations !== undefined && (!Array.isArray(job.reusedConversations) || job.reusedConversations.length > 12 || job.reusedConversations.some(c => !c?.reuse || !c.id || !['shopping', 'support'].includes(c.mode)))) throw new Error('Invalid authorized reused conversations');
 }
 export class WorkerError extends Error {
   constructor(code, message, retryable = false) { super(message); this.code = code; this.retryable = retryable; }

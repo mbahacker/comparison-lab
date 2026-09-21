@@ -9,6 +9,7 @@ import { judgeCapture } from './judge.mjs';
 import { assembleEvidence } from './evidence.mjs';
 import { trustedTransport } from './transport.mjs';
 import { validateModelStartup } from './model-provider.mjs';
+import { reusableFor } from './reuse.mjs';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 export function apiClient({ baseUrl, workerKey, fetchImpl = fetch }) {
@@ -29,7 +30,7 @@ export function failureDetails(error, signal) {
   return { code: /^[a-z_]+$/.test(reason?.code || '') ? reason.code : 'worker_failed',
     retryable: reason instanceof WorkerError && reason.retryable === true, message: reason?.message || 'Worker failed' };
 }
-export async function runJob(job, api, { rootDirectory = process.env.WORKER_DATA_DIR || './data', upstream, adapters = [] } = {}) {
+export async function runJob(job, api, { rootDirectory = process.env.WORKER_DATA_DIR || './data', upstream, adapters = [], startProxy = startPublicProxy, launchBrowser = launchCaptureBrowser, capture = captureConversation, judge = judgeCapture, loadReference = loadUpstream } = {}) {
   assertJob(job);
   const lease = { jobId: job.id, leaseToken: job.leaseToken, fencingToken: job.fencingToken };
   const control = new AbortController();
@@ -43,20 +44,23 @@ export async function runJob(job, api, { rootDirectory = process.env.WORKER_DATA
   }, 20000);
   const timeBudget = setTimeout(() => control.abort(new WorkerError('job_budget_exceeded', 'Four hour job time budget exceeded')), 4 * 60 * 60 * 1000);
   try {
-    upstream ||= await loadUpstream();
-    proxy = await startPublicProxy();
-    browser = await launchCaptureBrowser(proxy.url);
-    const abortBrowser = () => browser.close().catch(() => {}); control.signal.addEventListener('abort', abortBrowser, { once: true });
     const conversations = [];
     // Same ordered themes and fresh contexts for every provider/store. No adaptive prompts.
     for (const provider of job.providers) for (const store of provider.customers) for (const mode of ['shopping', 'support']) {
       control.signal.throwIfAborted();
-      const capture = await captureConversation({ browser, provider, store, mode, jobDirectory: directory, adapters, upstream, signal: control.signal });
-      const judged = await judgeCapture(capture, upstream, { signal: control.signal });
+      const reused = reusableFor(job, provider, store, mode);
+      if (reused) { conversations.push(structuredClone(reused)); continue; }
+      upstream ||= await loadReference();
+      if (!browser) {
+        proxy = await startProxy(); browser = await launchBrowser(proxy.url);
+        const abortBrowser = () => browser.close().catch(() => {}); control.signal.addEventListener('abort', abortBrowser, { once: true });
+      }
+      const captured = await capture({ browser, provider, store, mode, jobDirectory: directory, adapters, upstream, signal: control.signal });
+      const judged = await judge(captured, upstream, { signal: control.signal });
       conversations.push(judged);
-      await fs.writeFile(path.join(directory, `${capture.id}-judged.json`), JSON.stringify(judged, null, 2), { mode: 0o600 });
+      await fs.writeFile(path.join(directory, `${captured.id}-judged.json`), JSON.stringify(judged, null, 2), { mode: 0o600 });
     }
-    const evidence = assembleEvidence(job, conversations, upstream.manifest);
+    const evidence = assembleEvidence(job, conversations, upstream?.manifest || { reused_only: true });
     await fs.writeFile(path.join(directory, 'evidence.json'), JSON.stringify(evidence, null, 2), { mode: 0o600 });
     control.signal.throwIfAborted();
     await api('complete', { ...lease, evidence });
@@ -73,13 +77,12 @@ export async function runJob(job, api, { rootDirectory = process.env.WORKER_DATA
 export async function main() {
   validateModelStartup();
   const api = apiClient({ baseUrl: process.env.APP_BASE_URL, workerKey: process.env.WORKER_API_KEY });
-  const upstream = await loadUpstream();
   const adapters = process.env.WORKER_ADAPTERS_FILE ? JSON.parse(await fs.readFile(process.env.WORKER_ADAPTERS_FILE, 'utf8')) : [];
   let stopped = false; process.on('SIGTERM', () => { stopped = true; }); process.on('SIGINT', () => { stopped = true; });
   while (!stopped) {
     try {
       const { job } = await api('claim');
-      if (job) console.log(JSON.stringify(await runJob(job, api, { upstream, adapters })));
+      if (job) console.log(JSON.stringify(await runJob(job, api, { adapters })));
       else await sleep(10000);
     } catch (error) { console.error(JSON.stringify({ code: error.code || 'worker_error', message: 'Worker could not claim or process a job' })); await sleep(10000); }
   }

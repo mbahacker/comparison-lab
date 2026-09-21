@@ -45,7 +45,7 @@ export function ReportLibrary() {
       <section className="lab-hero shell">
         <div className="hero-copy">
           <p className="eyebrow">
-            <span className="live-dot" /> ALHENA COMPARISON LAB
+            <span className="live-dot" /> ALHENA RESEARCH LAB
           </p>
           <h1>
             Put ecommerce AI
@@ -65,8 +65,8 @@ export function ReportLibrary() {
             </Link>
           </div>
           <p className="hero-note">
-            <ScanLine size={16} /> Open evidence. Published criteria. No email
-            required to explore.
+            <ScanLine size={16} /> Public summaries. Published criteria. Verify
+            your work email to explore the full evidence.
           </p>
         </div>
         {latest ? (
@@ -109,7 +109,7 @@ export function ReportLibrary() {
         <section className="library-section" id="reports">
           <div className="section-heading">
             <div>
-              <p className="eyebrow">THE EVIDENCE, OPEN TO EVERYONE</p>
+              <p className="eyebrow">START WITH THE RESULTS</p>
               <h2>Look closer. Decide with confidence.</h2>
               <p>
                 Compare the scores. Then read what the agents actually said.
@@ -192,7 +192,7 @@ export function ReportLibrary() {
                   </Link>
                   <p className="card-disclosure">
                     Commissioned by{" "}
-                    {r.commissionedBy || "the Comparison Lab operator"}. Results
+                    {r.commissionedBy || "the Alhena Research Lab operator"}. Results
                     describe this sample.
                   </p>
                 </div>
@@ -340,7 +340,7 @@ export function ReportLibrary() {
               </p>
             </details>
             <details>
-              <summary>Who runs Comparison Lab?</summary>
+              <summary>Who runs Alhena Research Lab?</summary>
               <p>
                 Alhena operates the project. The initial Alhena versus Gorgias
                 pilot was commissioned by Alhena, with separate AI judging and
@@ -360,9 +360,10 @@ export function ReportLibrary() {
             <details>
               <summary>Do I need to sign up to read a report?</summary>
               <p>
-                No. Published reports, conversations and evidence downloads are
-                open. Email verification is only required when requesting a new
-                comparison.
+                Summaries and the scoring rubric are public. Verify your work email
+                with a six-digit code to read detailed conversations and
+                download evidence. Alhena receives your email and the report
+                you access. New comparison requests require a work email.
               </p>
             </details>
           </div>
@@ -438,7 +439,7 @@ function FeaturedSnapshot({ report: r }: { report: ReportSummary }) {
       </Link>
       <p className="snapshot-note">
         Mean quality scores for this sample. Commissioned by{" "}
-        {r.commissionedBy || "the Comparison Lab operator"}.
+        {r.commissionedBy || "the Alhena Research Lab operator"}.
       </p>
     </aside>
   );

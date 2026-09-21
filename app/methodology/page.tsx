@@ -31,7 +31,7 @@ export default function Page() {
         An open evidence record.
       </h1>
       <p className="intro">
-        Comparison Lab applies Gorgias’s published shopping and support quality
+        Alhena Research Lab applies Gorgias’s published shopping and support quality
         criteria. The weights stay fixed, and every decision is backed by a
         captured response.
       </p>
@@ -55,7 +55,7 @@ export default function Page() {
         <div className="method-card">
           <h3>Fresh browser sessions</h3>
           <p>
-            New automated runs isolate every conversation in a fresh browser
+            Newly captured conversations use a fresh browser
             context. An unsupported widget, a human takeover or incomplete
             evidence stops the run. The original pilot’s session limitations
             remain disclosed.
@@ -124,7 +124,7 @@ export default function Page() {
       ))}
       <h2>Source and version</h2>
       <p className="method-note">
-        The source rubric is published by Gorgias. Comparison Lab is an
+        The source rubric is published by Gorgias. Alhena Research Lab is an
         Alhena-operated project and is not endorsed or certified by Gorgias.{" "}
         <a href={seed.study.rubric_url} target="_blank" rel="noreferrer">
           Read the canonical rubric
@@ -138,6 +138,18 @@ export default function Page() {
       <h2>What a score does not prove</h2>
       <div className="prose-content">
         <p>
+          Compatible analysis may be reused for 30 days from its original capture
+          date. Reused conversations link to their source report and retain their
+          original dates and limitations. Republishing does not reset this window.
+          Only missing or expired conversations are evaluated again.
+        </p>
+        <p>
+          The imported September 20 study did not record per-turn AI-author proof.
+          Its attribution is inherited from the original report when reused;
+          no new author verification is performed. New automated captures require
+          positive AI-author evidence before publication.
+        </p>
+        <p>
           A high score describes how these captured conversations satisfied the
           specified rubric. It does not establish that a provider is universally
           better, that all factual claims are correct, or that a storefront will
@@ -145,9 +157,10 @@ export default function Page() {
         </p>
         <p>
           Separate AI judging and auditing are parts of this commissioned
-          evaluation. They do not make Comparison Lab an independent research
+          evaluation. They do not make Alhena Research Lab an independent research
           institution. Full transcripts, scoring details, source checks and
-          limitations are published with each completed report.
+          limitations accompany each completed report. Summaries and this rubric
+          are public; detailed evidence requires a verified work email.
         </p>
       </div>
     </main>

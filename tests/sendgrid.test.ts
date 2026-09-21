@@ -16,7 +16,7 @@ beforeEach(() => {
   directory = fs.mkdtempSync(path.join(os.tmpdir(), 'comparison-lab-sendgrid-test-'));
   Object.assign(process.env, {
     DATA_DIR: directory, NODE_ENV: 'production', APP_URL: 'https://comparison.test',
-    MAIL_TRANSPORT: 'sendgrid', MAIL_FROM: 'Comparison Lab <reports@business.example>',
+    MAIL_TRANSPORT: 'sendgrid', MAIL_FROM: 'Alhena Research Lab <reports@business.example>',
     SENDGRID_API_KEY: 'test-sendgrid-key',
   });
   delete process.env.RESEND_API_KEY;
@@ -58,7 +58,7 @@ test('SendGrid accepts multipart transactional mail with a parsed sender and tra
   assert.equal(headers.get('content-type'), 'application/json');
   assert.equal(headers.has('idempotency-key'), false);
   assert.deepEqual(JSON.parse(String(init.body)), {
-    from: { name: 'Comparison Lab', email: 'reports@business.example' },
+    from: { name: 'Alhena Research Lab', email: 'reports@business.example' },
     personalizations: [{ to: [{ email: 'recipient@business.example' }], custom_args: { outbox_id: id } }],
     subject: 'Comparison report',
     content: [{ type: 'text/plain', value: text }, { type: 'text/html', value: html }],
@@ -109,7 +109,7 @@ test('SendGrid only marks documented 202 acceptance as sent and sanitizes thrown
 
 test('SendGrid accepts bare or named senders and safely rejects malformed sender configuration before HTTP', async () => {
   assert.deepEqual(sendGridSender('reports@business.example'), { email: 'reports@business.example' });
-  assert.deepEqual(sendGridSender(' "Comparison Lab" <reports@business.example> '), { email: 'reports@business.example', name: 'Comparison Lab' });
+  assert.deepEqual(sendGridSender(' "Alhena Research Lab" <reports@business.example> '), { email: 'reports@business.example', name: 'Alhena Research Lab' });
   let calls = 0;
   globalThis.fetch = async () => { calls++; return new Response(null, { status: 202 }); };
   for (const sender of ['', 'not-an-address', 'a@business.example, b@business.example', 'Lab <a@business.example> extra', 'Lab\r\nBcc: hidden@business.example <a@business.example>']) {
