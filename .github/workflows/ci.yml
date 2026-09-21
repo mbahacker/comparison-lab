@@ -34,4 +34,5 @@ jobs:
           AUDITOR_MODEL: ci-placeholder-model
         run: |
           docker compose -f compose.yml -f compose.https.yml config --quiet
+          docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml config --quiet
           docker compose -f compose.yml -f compose.https.yml run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile

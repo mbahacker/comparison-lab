@@ -2,7 +2,7 @@
 
 ## Launch at evals.alhena.ai
 
-Use a dedicated Linux host with at least 4 GB RAM and Docker Compose v2. Keep the existing Jarvis automation host separate. This app requires persistent storage and a long-running browser worker; a static website host alone is insufficient.
+Use Docker Compose v2 on a dedicated Linux host with at least 4 GB RAM, or use the shared-host configuration below for a larger host running Jarvis alongside Comparison Lab. This app requires persistent storage and a long-running browser worker; a static website host alone is insufficient.
 
 1. Clone `https://github.com/mbahacker/comparison-lab.git` onto the selected host and use a reviewed commit. Create a fresh production data volume; do not copy the local preview database, accounts, or queued test requests.
 2. Copy `.env.example` to `.env`, restrict its permissions (`chmod 600 .env`), and configure all required values. `APP_URL` is `https://evals.alhena.ai`; approval emails go to `ashu@alhena.ai`. Set `MAIL_TRANSPORT=sendgrid` and configure `SENDGRID_API_KEY`. Confirm that `MAIL_FROM` is authorized by the authenticated SendGrid sender domain. Enter secrets on the host or through its secret manager, never in Git or chat.
@@ -24,6 +24,32 @@ Open the homepage, initial report, conversation deep links, `/request`, and soci
 Do not enable a Cloudflare "Cache Everything" rule for this application: authentication, request status, and approval routes are private and dynamic. If enabling the Cloudflare proxy after origin verification, retain strict origin TLS validation. Never log or share full approval URLs.
 
 For later updates, use both Compose files consistently, preserve `app-data`, `worker-data`, `caddy-data`, and `caddy-config`, and take a consistent backup first. Never use `docker compose down --volumes` on production.
+
+## Sharing a replacement host with Jarvis
+
+For an 8-vCPU host with at least 32 GB RAM, add `compose.shared.yml` last. It applies the following runtime ceilings to one instance of each service while retaining the base users, capabilities, seccomp profile, private volumes, and loopback-only web port:
+
+| Service | CPU ceiling | Memory ceiling | Optional `.env` overrides |
+| --- | ---: | ---: | --- |
+| Web | 1 | 2 GiB | `LAB_WEB_CPUS`, `LAB_WEB_MEMORY` |
+| Mailer | 0.5 | 512 MiB | `LAB_MAILER_CPUS`, `LAB_MAILER_MEMORY` |
+| Browser worker | 2 | 6 GiB | `LAB_WORKER_CPUS`, `LAB_WORKER_MEMORY` |
+| Caddy | 0.5 | 256 MiB | `LAB_CADDY_CPUS`, `LAB_CADDY_MEMORY` |
+
+The defaults total 4 CPUs and 8.75 GiB. These are ceilings, not reserved capacity; budget Jarvis, its separate cron processes, the OS, and Docker independently. Memory includes the worker's shared-memory use. Each service's `memswap_limit` equals its `mem_limit`, preventing these containers from consuming host swap. Use positive CPU limits and Docker memory units such as `6g` or `512m` for overrides; `0` removes a CPU limit. See the [Compose CPU and memory settings](https://docs.docker.com/reference/compose-file/services/#cpus).
+
+With `.env` configured, validate the merged configuration without printing secrets, build during a quiet period, then start:
+
+```sh
+docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml config --quiet
+docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml --parallel 1 build
+docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml up -d --no-build
+docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml stats --no-stream
+```
+
+Runtime limits do not cap Docker/BuildKit image builds. Serial builds reduce overlapping work, but an individual build can still use additional CPU and memory. Leave build headroom, avoid Jarvis cron peaks, and watch host memory and load; build off-host for the matching CPU architecture if adequate headroom is unavailable. Do not infer that the runtime ceilings make `up --build` safe under peak load.
+
+This overlay expects both base files above because Caddy is defined in `compose.https.yml`. If the host already has a reverse proxy on ports 80/443, configure that proxy for `evals.alhena.ai` and start only `web mailer worker` with the same three files; do not start a second Caddy. Check existing listeners before launch. Retain the three-file invocation for future restarts and updates so the resource ceilings remain applied. Confirm actual container limits with `docker inspect` and observe `docker stats`, host free memory, and Jarvis responsiveness during a controlled evaluation before raising limits. Configuration validation alone does not prove engine enforcement or sufficient capacity.
 
 ## Before first launch
 

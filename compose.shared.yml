@@ -1,0 +1,20 @@
+# Runtime ceilings for a shared host; use after compose.yml and compose.https.yml.
+# These limits do not constrain image builds or reserve resources for other apps.
+# Matching memory and swap limits prevents these containers from using host swap.
+services:
+  web:
+    cpus: "${LAB_WEB_CPUS:-1.0}"
+    mem_limit: "${LAB_WEB_MEMORY:-2g}"
+    memswap_limit: "${LAB_WEB_MEMORY:-2g}"
+  mailer:
+    cpus: "${LAB_MAILER_CPUS:-0.5}"
+    mem_limit: "${LAB_MAILER_MEMORY:-512m}"
+    memswap_limit: "${LAB_MAILER_MEMORY:-512m}"
+  worker:
+    cpus: "${LAB_WORKER_CPUS:-2.0}"
+    mem_limit: "${LAB_WORKER_MEMORY:-6g}"
+    memswap_limit: "${LAB_WORKER_MEMORY:-6g}"
+  caddy:
+    cpus: "${LAB_CADDY_CPUS:-0.5}"
+    mem_limit: "${LAB_CADDY_MEMORY:-256m}"
+    memswap_limit: "${LAB_CADDY_MEMORY:-256m}"
