@@ -51,8 +51,9 @@
 	],
 	"syscalls": [
 		{
-			"comment": "Allow create user namespaces",
+			"comment": "Allow Chromium user namespaces and their chroot with all container capabilities dropped",
 			"names": [
+				"chroot",
 				"clone",
 				"setns",
 				"unshare"

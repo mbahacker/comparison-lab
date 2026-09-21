@@ -18,7 +18,7 @@ Next.js, React, Radix UI, Shadcn components, Tailwind CSS, Lucide, and other dep
 
 ## Browser runtime policy
 
-`deploy/chromium-seccomp.json` is from Microsoft's Playwright repository at tag `v1.62.1`, `utils/docker/seccomp_profile.json`. Playwright is Apache2.0 licensed; its license is included in `deploy/PLAYWRIGHT-LICENSE.txt`. The profile supports the Chromium sandbox in the unprivileged worker container.
+`deploy/chromium-seccomp.json` is adapted from Microsoft's Playwright repository at tag `v1.62.1`, `utils/docker/seccomp_profile.json`. The local modification allows the `chroot` syscall without requiring a container capability, so Chromium can construct its sandbox inside a user namespace while the worker drops all container capabilities. Playwright is Apache2.0 licensed; its license is included in `deploy/PLAYWRIGHT-LICENSE.txt`.
 
 ## Alhena brand assets
 

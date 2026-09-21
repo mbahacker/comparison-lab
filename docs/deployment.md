@@ -76,7 +76,9 @@ docker compose ps
 docker compose logs --tail=100 web mailer worker
 ```
 
-The health endpoint reports configuration presence, not delivery success or live storefront compatibility. Never expose internal container ports or SQLite volumes publicly. The worker uses Microsoft's versioned Playwright seccomp profile with Chromium's sandbox enabled; do not solve startup failures with privileged mode or `--no-sandbox`.
+The health endpoint reports configuration presence, not delivery success or live storefront compatibility. Never expose internal container ports or SQLite volumes publicly. The worker uses a profile derived from Microsoft's versioned Playwright seccomp profile with Chromium's sandbox enabled; do not solve startup failures with privileged mode or `--no-sandbox`.
+
+The profile explicitly allows `chroot`, which Chromium needs inside its sandbox user namespace. The upstream profile permits this syscall only when the container has `CAP_SYS_CHROOT`; that conflicts with this worker's `cap_drop: [ALL]` and causes sandbox startup to fail. Allowing the syscall retains the non-root user and empty container capability sets; kernel namespace permission checks still apply. A local-HTML smoke test on the Ubuntu 22.04 x86-64 deployment host passed with the sandbox enabled, the updated seccomp profile, all capabilities dropped, and the shared-host limits. This verifies browser startup, not live storefront compatibility or production capacity.
 
 ## First production verification
 
