@@ -2,22 +2,24 @@
 
 ## Launch at evals.alhena.ai
 
-Use Docker Compose v2 on a dedicated Linux host with at least 4 GB RAM, or use the shared-host configuration below for a larger host running Jarvis alongside Comparison Lab. This app requires persistent storage and a long-running browser worker; a static website host alone is insufficient.
+Use Docker Compose v2 on a dedicated Linux host with at least 4 GB RAM, or use the shared-host configuration below for a larger host running Jarvis alongside Comparison Lab. This app requires persistent storage; a static website host alone is insufficient. New evaluations also require a long-running browser worker, which can be enabled separately after the public report library and onboarding are running.
 
 1. Clone `https://github.com/mbahacker/comparison-lab.git` onto the selected host and use a reviewed commit. Create a fresh production data volume; do not copy the local preview database, accounts, or queued test requests.
 2. Copy `.env.example` to `.env`, restrict its permissions (`chmod 600 .env`), and configure all required values. `APP_URL` is `https://evals.alhena.ai`; approval emails go to `ashu@alhena.ai`. Set `MAIL_TRANSPORT=sendgrid` and configure `SENDGRID_API_KEY`. Confirm that `MAIL_FROM` is authorized by the authenticated SendGrid sender domain. Enter secrets on the host or through its secret manager, never in Git or chat.
 3. In the `alhena.ai` Cloudflare zone, create an `A` record named `evals` pointing to the host's public IPv4 address. Initially use DNS-only mode for straightforward certificate provisioning. Do not change the apex or other subdomains. Only add an `AAAA` record if IPv6 reaches this same server.
 4. Permit inbound TCP 80 and 443, and optionally UDP 443 for HTTP/3, in the cloud firewall. Limit SSH access to the operator. Port 3100 remains loopback-only.
-5. On a dedicated host without another web server, start the bundled HTTPS proxy and application:
+5. On a dedicated host without another web server, start the bundled HTTPS proxy, application and mail dispatcher. This command needs no model credentials or worker secret:
 
 ```sh
 docker compose -f compose.yml -f compose.https.yml config --quiet
-docker compose -f compose.yml -f compose.https.yml up -d --build
+docker compose -f compose.yml -f compose.https.yml up -d --build web mailer caddy
 docker compose -f compose.yml -f compose.https.yml ps
 curl --fail https://evals.alhena.ai/api/health
 ```
 
 The HTTPS overlay adds Caddy with persistent certificate storage. Caddy obtains and renews the certificate automatically once DNS and inbound ports are reachable. If the host already has an HTTPS reverse proxy, use the base Compose file and adapt `deploy/Caddyfile` instead; do not bind a second proxy to the same ports. See the [Caddy HTTPS documentation](https://caddyserver.com/docs/automatic-https) and [official container guidance](https://hub.docker.com/_/caddy).
+
+The `worker` service uses an opt-in Compose profile. Configure the evaluator as described below, then enable the full stack with `docker compose -f compose.yml -f compose.https.yml --profile worker up -d --build`. Without a worker, approved comparisons stay queued and `/api/health` reports whether the worker secret is configured. A configured secret alone does not prove a worker is running.
 
 Open the homepage, initial report, conversation deep links, `/request`, and social preview images at the public URL. Inspect all `/api/health` JSON flags: HTTP 200 alone does not prove readiness. Complete the production verification steps below before claiming that new evaluations work end to end. Public report browsing can be verified separately.
 
@@ -38,14 +40,16 @@ For an initial 4-vCPU host with at least 16 GiB RAM and a 100 GB disk, add `comp
 
 The defaults total 1.75 CPUs and 5.75 GiB. These are ceilings, not reserved capacity. An initial 16 GiB host budget can allocate 6 GiB to Jarvis and 2 GiB to its separate cron processes, leaving 2.25 GiB for the OS, Docker, and headroom; those Jarvis allocations require separate configuration and are not enforced by this overlay. Validate the combined budget under controlled concurrent load before relying on it. The mailer handles one message at a time and does not run Next.js or a browser. Memory includes the worker's shared-memory use. Each service's `memswap_limit` equals its `mem_limit`, preventing these containers from consuming host swap. Use positive CPU limits and Docker memory units such as `4g` or `512m` for overrides; `0` removes a CPU limit. See the [Compose CPU and memory settings](https://docs.docker.com/reference/compose-file/services/#cpus).
 
-With `.env` configured, validate the merged configuration without printing secrets, build during a quiet period, then start:
+With `.env` configured for evaluations, validate the merged configuration without printing secrets, build during a quiet period, then start the full stack:
 
 ```sh
-docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml config --quiet
-docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml --parallel 1 build
-docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml up -d --no-build
+docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml --profile worker config --quiet
+docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml --profile worker --parallel 1 build
+docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml --profile worker up -d --no-build
 docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml stats --no-stream
 ```
+
+For web-only startup on this shared host, omit `--profile worker` and name `web mailer caddy` in the serial `build` and `up -d --no-build` commands. No model key, model ID, provider selection or worker secret is required for those services. Keep the same three Compose files so resource ceilings still apply.
 
 Runtime limits do not cap Docker/BuildKit image builds. Build on the replacement host before cutting Jarvis over to it. For later updates, serial builds reduce overlapping work, but an individual build can still use additional CPU and memory. Leave build headroom, avoid Jarvis cron peaks, and watch host memory and load; build off-host for the matching CPU architecture if adequate headroom is unavailable. Do not infer that the runtime ceilings make `up --build` safe under peak load. Monitor disk growth from images and evidence; the 100 GB starting disk is not a retention guarantee.
 
@@ -55,18 +59,28 @@ This overlay expects both base files above because Caddy is defined in `compose.
 
 1. Use a Linux web server with Docker Engine, Compose v2, at least 4 GB RAM, adequate disk space for evidence, and unprivileged Chromium sandbox support.
 2. Point a domain to the server and install Caddy or an equivalent HTTPS reverse proxy.
-3. Create `.env` from `.env.example`. Set the public HTTPS URL, approved sender, SendGrid API key, shared worker secret, model API key and two explicit model IDs. Keep `.env` permission-restricted and out of Git. The selected email transport needs its matching key; the website can start without one, but email verification will be unavailable.
+3. Create `.env` from `.env.example`. Set the public HTTPS URL, approved sender and SendGrid API key. Before enabling the worker, also set the shared worker secret, explicit model provider, its matching model API key and two explicit model IDs. Keep `.env` permission-restricted and out of Git. The selected email transport needs its matching key; the website can start without one, but email verification will be unavailable.
 4. Verify the sender domain with the email service. The approval recipient is `ashu@alhena.ai` by default.
 5. Ensure outbound access to the selected model API, email API, GitHub pinned-reference downloads and the public storefronts. The worker's browser proxy rejects private and reserved networks, including cloud metadata addresses.
 
 Generate a worker secret locally with `openssl rand -hex 32`; do not paste it into issues, reports or client-side code. The Compose file maps it into the app and worker only. The worker has no app-data volume or email-provider credentials.
 
-## Start
+## Evaluator provider
+
+Choose exactly one provider with `MODEL_PROVIDER=openai` or `MODEL_PROVIDER=anthropic`. OpenAI requires `OPENAI_API_KEY`; Anthropic requires `ANTHROPIC_API_KEY`. Set explicit `JUDGE_MODEL` and `AUDITOR_MODEL` IDs supported by that provider and account. No model ID is selected by the application. Leave the unused provider key unset. Startup fails if the selected provider, its key, either model ID or the worker API secret is missing. There is no automatic provider fallback.
+
+Anthropic uses the Messages API's [native structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs), with `output_config.format` and an API key. Claude subscription/CLI login and OAuth credentials are not supported. Both providers receive the same pinned rubric and masked conversation packet in separate judge and auditor calls. Provider, requested and returned model IDs, and response IDs are included in evaluation provenance. Incomplete output, refusal, malformed JSON or failed evidence validation stops publication; switching providers does not change criteria, weights or deterministic scoring.
+
+Optional `OPENAI_BASE_URL` and `ANTHROPIC_BASE_URL` overrides must be trusted HTTPS API endpoints. A selected API key is sent to the selected endpoint; do not accept endpoint overrides from comparison submitters. The browser subprocess receives a narrow environment allowlist and does not inherit either model API key.
+
+## Start with an existing HTTPS reverse proxy
 
 ```sh
-docker compose build
-docker compose up -d
+docker compose build web mailer
+docker compose up -d web mailer
 ```
+
+After configuring the evaluator and worker secret, enable execution with `docker compose --profile worker up -d --build`. Compose deliberately defers evaluator validation until worker startup so web-only operation needs no dummy credentials. A worker started with incomplete configuration exits before claiming work.
 
 The app listens only on host loopback port 3100. Adapt `deploy/Caddyfile` to your domain and reload Caddy. Use exactly the same HTTPS origin in `APP_URL`; origin checks and secure cookies depend on it.
 

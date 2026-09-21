@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { RUBRIC, criteriaFor, WorkerError } from './protocol.mjs';
 import { deriveCheckedScore, checkQuotes, mergeAudit } from './scoring.mjs';
-import { trustedTransport } from './transport.mjs';
+import { providerStructuredResponse } from './model-provider.mjs';
 
 const object = properties => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
 const string = { type: 'string' };
@@ -9,24 +9,8 @@ export function verdictSchema(mode, auditor = false) {
   const check = auditor ? object({ classification: { type: 'string', enum: ['AGREE', 'FP', 'FN'] }, reason: string, evidence: string }) : object({ pass: { type: 'boolean' }, evidence: string });
   return object({ checks: object(Object.fromEntries(criteriaFor(mode).map(c => [c.id, check]))), resolution_class: { type: 'string', enum: ['resolved', 'partial', 'deflected', 'failed'] }, learning: string });
 }
-export async function structuredResponse({ instructions, input, schema, model, signal, fetchImpl = fetch }) {
-  const key = process.env.OPENAI_API_KEY;
-  if (!key || !model) throw new WorkerError('model_configuration', 'OPENAI_API_KEY and both judge model names must be configured');
-  const base = new URL(process.env.OPENAI_BASE_URL || 'https://api.openai.com/v1/');
-  if (base.protocol !== 'https:') throw new WorkerError('model_configuration', 'Model endpoint must use HTTPS');
-  const endpoint = new URL(base.href.replace(/\/$/, '') + '/responses');
-  const response = await trustedTransport(() => fetchImpl(endpoint, { method: 'POST', headers: { Authorization: `Bearer ${key}`, 'Content-Type': 'application/json' },
-    signal: AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]),
-    body: JSON.stringify({ model, store: false, instructions, input: JSON.stringify(input), max_output_tokens: 10000,
-      text: { format: { type: 'json_schema', name: 'criterion_verdict', strict: true, schema } } }) }), { code: 'model_transport_failed', signal });
-  if (!response.ok) throw new WorkerError('model_request_failed', `Model endpoint returned ${response.status}`, response.status === 429 || response.status >= 500);
-  const result = await trustedTransport(() => response.json(), { code: 'model_transport_failed', signal });
-  if (result.status !== 'completed' || !Array.isArray(result.output)) throw new WorkerError('model_incomplete', 'Judge response was incomplete or refused');
-  const text = result.output.flatMap(o => o.content || []).filter(c => c.type === 'output_text').map(c => c.text).join('');
-  if (!text || text.length > 200000) throw new WorkerError('model_incomplete', 'No bounded structured judge result');
-  let value; try { value = JSON.parse(text); } catch { throw new WorkerError('invalid_verdict', 'Judge returned invalid JSON'); }
-  return { value, metadata: { model: result.model || model, response_id: result.id, usage: result.usage, created_at: new Date().toISOString() } };
-}
+// Kept as an exported wrapper so existing injected callers and tests remain compatible.
+export async function structuredResponse(options) { return providerStructuredResponse(options); }
 function mask(text, names) {
   let result = text;
   for (const name of names.filter(n => n?.length >= 3)) result = result.replace(new RegExp(name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), 'the store');

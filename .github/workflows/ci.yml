@@ -29,10 +29,22 @@ jobs:
           MAIL_TRANSPORT: sendgrid
           SENDGRID_API_KEY: ci-placeholder-not-a-real-key
           WORKER_SECRET: ci-placeholder-worker-secret-at-least-32-characters
+          MODEL_PROVIDER: openai
           OPENAI_API_KEY: ci-placeholder-not-a-real-key
           JUDGE_MODEL: ci-placeholder-model
           AUDITOR_MODEL: ci-placeholder-model
         run: |
-          docker compose -f compose.yml -f compose.https.yml config --quiet
-          docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml config --quiet
+          docker compose -f compose.yml -f compose.https.yml --profile worker config --quiet
+          docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml --profile worker config --quiet
           docker compose -f compose.yml -f compose.https.yml run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
+      - name: Validate web-only configuration without worker or model credentials
+        env:
+          APP_URL: https://evals.alhena.ai
+          MAIL_FROM: Comparison Lab <reports@alhena.ai>
+          MAIL_TRANSPORT: sendgrid
+        run: |
+          unset COMPOSE_PROFILES WORKER_SECRET WORKER_API_KEY MODEL_PROVIDER OPENAI_API_KEY ANTHROPIC_API_KEY OPENAI_BASE_URL ANTHROPIC_BASE_URL JUDGE_MODEL AUDITOR_MODEL SENDGRID_API_KEY RESEND_API_KEY
+          docker compose --env-file /dev/null -f compose.yml -f compose.https.yml config --quiet
+          docker compose --env-file /dev/null -f compose.yml -f compose.https.yml -f compose.shared.yml config --quiet
+          services=$(docker compose --env-file /dev/null -f compose.yml -f compose.https.yml -f compose.shared.yml config --services)
+          test "$(printf '%s\n' "$services" | sort)" = "$(printf '%s\n' caddy mailer web)"

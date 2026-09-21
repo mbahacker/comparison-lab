@@ -12,7 +12,7 @@ services:
       MAIL_TRANSPORT: ${MAIL_TRANSPORT:-sendgrid}
       SENDGRID_API_KEY: ${SENDGRID_API_KEY:-}
       RESEND_API_KEY: ${RESEND_API_KEY:-}
-      WORKER_SECRET: ${WORKER_SECRET:?Set a random secret of at least 32 characters}
+      WORKER_SECRET: ${WORKER_SECRET:-}
     volumes:
       - app-data:/data
     ports:
@@ -33,6 +33,7 @@ services:
       - no-new-privileges:true
     cap_drop: [ALL]
   worker:
+    profiles: [worker]
     build:
       context: .
       dockerfile: worker/Dockerfile
@@ -41,10 +42,14 @@ services:
     shm_size: 1gb
     environment:
       APP_BASE_URL: http://web:3100
-      WORKER_API_KEY: ${WORKER_SECRET:?Set the same worker secret}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:?Set the evaluator model key}
-      JUDGE_MODEL: ${JUDGE_MODEL:?Set the judge model}
-      AUDITOR_MODEL: ${AUDITOR_MODEL:?Set the auditor model}
+      WORKER_API_KEY: ${WORKER_SECRET:-}
+      MODEL_PROVIDER: ${MODEL_PROVIDER:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1/}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL:-https://api.anthropic.com/v1/}
+      JUDGE_MODEL: ${JUDGE_MODEL:-}
+      AUDITOR_MODEL: ${AUDITOR_MODEL:-}
       WORKER_DATA_DIR: /data
       RUBRIC_CACHE_DIR: /data/reference-cache
     volumes:

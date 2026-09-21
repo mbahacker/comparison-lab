@@ -8,6 +8,7 @@ import { launchCaptureBrowser, captureConversation } from './capture.mjs';
 import { judgeCapture } from './judge.mjs';
 import { assembleEvidence } from './evidence.mjs';
 import { trustedTransport } from './transport.mjs';
+import { validateModelStartup } from './model-provider.mjs';
 
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
 export function apiClient({ baseUrl, workerKey, fetchImpl = fetch }) {
@@ -70,7 +71,7 @@ export async function runJob(job, api, { rootDirectory = process.env.WORKER_DATA
   } finally { clearInterval(heartbeat); clearTimeout(timeBudget); await browser?.close().catch(() => {}); await proxy?.close(); }
 }
 export async function main() {
-  if (!process.env.JUDGE_MODEL || !process.env.AUDITOR_MODEL || !process.env.OPENAI_API_KEY) throw new WorkerError('worker_configuration', 'Set OPENAI_API_KEY, JUDGE_MODEL and AUDITOR_MODEL before starting');
+  validateModelStartup();
   const api = apiClient({ baseUrl: process.env.APP_BASE_URL, workerKey: process.env.WORKER_API_KEY });
   const upstream = await loadUpstream();
   const adapters = process.env.WORKER_ADAPTERS_FILE ? JSON.parse(await fs.readFile(process.env.WORKER_ADAPTERS_FILE, 'utf8')) : [];

@@ -52,7 +52,9 @@ Run a separate local mail dispatcher when exercising approval and completion not
 node --env-file=.env.local --experimental-strip-types lib/server/mail-daemon.ts
 ```
 
-To run the browser worker, configure its keys and model IDs from `worker/env.example`, install Chromium, then start it in a suitable sandboxed environment. The server's `WORKER_SECRET` must equal the worker's `WORKER_API_KEY`.
+To run the browser worker, configure `worker/env.example`, install Chromium, then start it in a suitable sandboxed environment. Set `MODEL_PROVIDER` explicitly to `openai` or `anthropic`, provide the matching `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`, and choose supported `JUDGE_MODEL` and `AUDITOR_MODEL` IDs. The server's `WORKER_SECRET` must equal the worker's `WORKER_API_KEY`. A running worker rejects incomplete configuration; it never chooses a provider based on available credentials or falls back to another provider.
+
+Both providers use structured JSON outputs with the same fixed rubric, separate judge/auditor calls and deterministic scoring. Published evidence records the provider, requested and returned model IDs, and response IDs. Anthropic support uses its [Messages API structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs), authenticated with an Anthropic API key. Claude subscription login, CLI credentials and OAuth tokens are not used.
 
 ## Deploy on a web server
 
@@ -63,8 +65,21 @@ Deployment needs:
 - A Linux host with Docker Compose and Chromium sandbox support.
 - A domain and HTTPS origin matching `APP_URL`.
 - A SendGrid API key with Mail Send access and an authenticated sender domain (`MAIL_TRANSPORT=sendgrid`). Resend remains available as an alternative. The default sender `reports@alhena.ai` is a configuration suggestion; this repository does not verify DNS or provision that mailbox.
-- A random shared worker secret of at least 32 characters.
-- A model API key and explicit `JUDGE_MODEL` and `AUDITOR_MODEL` IDs supported by that account.
+- To run new evaluations: a random shared worker secret of at least 32 characters, explicit `MODEL_PROVIDER=openai` or `MODEL_PROVIDER=anthropic`, its matching API key, and explicit `JUDGE_MODEL` and `AUDITOR_MODEL` IDs supported by that account.
+
+The report library, onboarding and mail dispatcher can run without worker or model credentials:
+
+```sh
+docker compose -f compose.yml -f compose.https.yml up -d --build web mailer caddy
+```
+
+The worker is behind the `worker` Compose profile. After configuring its required values, enable it with:
+
+```sh
+docker compose -f compose.yml -f compose.https.yml --profile worker up -d --build
+```
+
+Approved requests remain queued until a configured worker runs. The `workerConfigured` flag in `/api/health` reports only whether the shared worker secret is present and long enough; it does not establish that an evaluator is configured or running. Web-only startup does not claim evaluation readiness. See the deployment guide for shared-host build and resource limits.
 
 No production credentials are committed. No actual storefront evaluation starts until the operator approves a submitted comparison and the worker is running.
 
