@@ -1,0 +1,7 @@
+# APP_URL must be the same HTTPS origin used by the application.
+{$APP_URL} {
+  encode zstd gzip
+  reverse_proxy web:3100
+  header Strict-Transport-Security "max-age=31536000"
+  # Keep access logging disabled: approval URLs contain bearer tokens.
+}

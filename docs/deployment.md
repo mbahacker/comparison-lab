@@ -1,5 +1,30 @@
 # Deploy and operate Comparison Lab
 
+## Launch at evals.alhena.ai
+
+Use a dedicated Linux host with at least 4 GB RAM and Docker Compose v2. Keep the existing Jarvis automation host separate. This app requires persistent storage and a long-running browser worker; a static website host alone is insufficient.
+
+1. Clone `https://github.com/mbahacker/comparison-lab.git` onto the selected host and use a reviewed commit. Create a fresh production data volume; do not copy the local preview database, accounts, or queued test requests.
+2. Copy `.env.example` to `.env`, restrict its permissions (`chmod 600 .env`), and configure all required values. `APP_URL` is `https://evals.alhena.ai`; approval emails go to `ashu@alhena.ai`. Confirm that `MAIL_FROM` is authorized by the verified Resend sender domain. Enter secrets on the host or through its secret manager, never in Git or chat.
+3. In the `alhena.ai` Cloudflare zone, create an `A` record named `evals` pointing to the host's public IPv4 address. Initially use DNS-only mode for straightforward certificate provisioning. Do not change the apex or other subdomains. Only add an `AAAA` record if IPv6 reaches this same server.
+4. Permit inbound TCP 80 and 443, and optionally UDP 443 for HTTP/3, in the cloud firewall. Limit SSH access to the operator. Port 3100 remains loopback-only.
+5. On a dedicated host without another web server, start the bundled HTTPS proxy and application:
+
+```sh
+docker compose -f compose.yml -f compose.https.yml config --quiet
+docker compose -f compose.yml -f compose.https.yml up -d --build
+docker compose -f compose.yml -f compose.https.yml ps
+curl --fail https://evals.alhena.ai/api/health
+```
+
+The HTTPS overlay adds Caddy with persistent certificate storage. Caddy obtains and renews the certificate automatically once DNS and inbound ports are reachable. If the host already has an HTTPS reverse proxy, use the base Compose file and adapt `deploy/Caddyfile` instead; do not bind a second proxy to the same ports. See the [Caddy HTTPS documentation](https://caddyserver.com/docs/automatic-https) and [official container guidance](https://hub.docker.com/_/caddy).
+
+Open the homepage, initial report, conversation deep links, `/request`, and social preview images at the public URL. Inspect all `/api/health` JSON flags: HTTP 200 alone does not prove readiness. Complete the production verification steps below before claiming that new evaluations work end to end. Public report browsing can be verified separately.
+
+Do not enable a Cloudflare "Cache Everything" rule for this application: authentication, request status, and approval routes are private and dynamic. If enabling the Cloudflare proxy after origin verification, retain strict origin TLS validation. Never log or share full approval URLs.
+
+For later updates, use both Compose files consistently, preserve `app-data`, `worker-data`, `caddy-data`, and `caddy-config`, and take a consistent backup first. Never use `docker compose down --volumes` on production.
+
 ## Before first launch
 
 1. Use a Linux web server with Docker Engine, Compose v2, at least 4 GB RAM, adequate disk space for evidence, and unprivileged Chromium sandbox support.

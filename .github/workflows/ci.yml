@@ -22,3 +22,15 @@ jobs:
           NEXT_TELEMETRY_DISABLED: '1'
       - run: docker build -t comparison-lab-web .
       - run: docker build -f worker/Dockerfile -t comparison-lab-worker .
+      - name: Validate production Compose and HTTPS configuration
+        env:
+          APP_URL: https://evals.alhena.ai
+          MAIL_FROM: Comparison Lab <reports@alhena.ai>
+          RESEND_API_KEY: ci-placeholder-not-a-real-key
+          WORKER_SECRET: ci-placeholder-worker-secret-at-least-32-characters
+          OPENAI_API_KEY: ci-placeholder-not-a-real-key
+          JUDGE_MODEL: ci-placeholder-model
+          AUDITOR_MODEL: ci-placeholder-model
+        run: |
+          docker compose -f compose.yml -f compose.https.yml config --quiet
+          docker compose -f compose.yml -f compose.https.yml run --rm --no-deps caddy caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile
