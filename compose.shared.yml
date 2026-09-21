@@ -3,18 +3,18 @@
 # Matching memory and swap limits prevents these containers from using host swap.
 services:
   web:
-    cpus: "${LAB_WEB_CPUS:-1.0}"
-    mem_limit: "${LAB_WEB_MEMORY:-2g}"
-    memswap_limit: "${LAB_WEB_MEMORY:-2g}"
+    cpus: "${LAB_WEB_CPUS:-0.5}"
+    mem_limit: "${LAB_WEB_MEMORY:-1g}"
+    memswap_limit: "${LAB_WEB_MEMORY:-1g}"
   mailer:
-    cpus: "${LAB_MAILER_CPUS:-0.5}"
+    cpus: "${LAB_MAILER_CPUS:-0.125}"
     mem_limit: "${LAB_MAILER_MEMORY:-512m}"
     memswap_limit: "${LAB_MAILER_MEMORY:-512m}"
   worker:
-    cpus: "${LAB_WORKER_CPUS:-2.0}"
-    mem_limit: "${LAB_WORKER_MEMORY:-6g}"
-    memswap_limit: "${LAB_WORKER_MEMORY:-6g}"
+    cpus: "${LAB_WORKER_CPUS:-1.0}"
+    mem_limit: "${LAB_WORKER_MEMORY:-4g}"
+    memswap_limit: "${LAB_WORKER_MEMORY:-4g}"
   caddy:
-    cpus: "${LAB_CADDY_CPUS:-0.5}"
+    cpus: "${LAB_CADDY_CPUS:-0.125}"
     mem_limit: "${LAB_CADDY_MEMORY:-256m}"
     memswap_limit: "${LAB_CADDY_MEMORY:-256m}"
