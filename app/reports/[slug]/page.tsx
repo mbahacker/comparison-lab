@@ -4,6 +4,8 @@ import { ReportExplorer } from "@/components/lab/report-explorer";
 import { config } from "@/lib/server/config";
 import { getReport } from "@/lib/server/evidence";
 import { ApiError } from "@/lib/server/model";
+import { jsonLd, reportStructuredData } from "@/lib/server/public-data";
+import type { ReportSummary } from "@/lib/client";
 
 export const dynamic = "force-dynamic";
 
@@ -61,5 +63,9 @@ export default async function Page({
 }: {
   params: Promise<{ slug: string }>;
 }) {
-  return <ReportExplorer slug={(await params).slug} />;
+  const { slug } = await params;
+  let report;
+  try { report = getReport(slug).report; }
+  catch (error) { if (error instanceof ApiError && error.status === 404) notFound(); throw error; }
+  return <><script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(reportStructuredData(report))}}/><ReportExplorer slug={slug} initialReport={report as ReportSummary}/></>;
 }

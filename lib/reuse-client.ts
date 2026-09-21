@@ -24,6 +24,25 @@ export type ReusePreview = {
   existingReport?: { slug: string; title: string };
   previousReport?: { slug: string; title: string };
 };
+export type ExistingTool = { id: string; name: string; reportSlug?: string };
+export type ToolReusePreview = Omit<ReusePreview, 'existingReport'> & {
+  existingTool?: ExistingTool;
+  previousTool?: ExistingTool;
+};
+export type AnalysisRequest = {
+  id: string;
+  status: string;
+  providers: Vendor[];
+  createdAt: string;
+  updatedAt?: string;
+  reviewNote?: string;
+  reportSlug?: string;
+  toolId?: string;
+  kind?: string;
+  notes?: string;
+  error?: string;
+  comparisons?: { slug: string; title: string }[];
+};
 export type FilledFields = Record<string, string>;
 
 const nameKey = (value: string) => value.trim().toLocaleLowerCase().replace(/\s+/g, ' ');

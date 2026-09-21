@@ -71,11 +71,16 @@ export function db() {
   connection.exec('BEGIN IMMEDIATE');
   try {
     const requestColumns = new Set((connection.prepare('PRAGMA table_info(requests)').all() as { name: string }[]).map(column => column.name));
-    for (const column of ['notes', 'consent_at', 'attribution_confirmed_at']) {
+    for (const column of ['notes', 'consent_at', 'attribution_confirmed_at', 'tool_id', 'comparisons_json']) {
       if (!requestColumns.has(column)) connection.exec(`ALTER TABLE requests ADD COLUMN ${column} TEXT`);
     }
     const jobColumns = new Set((connection.prepare('PRAGMA table_info(jobs)').all() as { name: string }[]).map(column => column.name));
-    if (!jobColumns.has('reuse_json')) connection.exec('ALTER TABLE jobs ADD COLUMN reuse_json TEXT');
+    for (const column of ['reuse_json', 'completion_token_hash', 'completion_evidence_hash', 'completion_json']) {
+      if (!jobColumns.has(column)) connection.exec(`ALTER TABLE jobs ADD COLUMN ${column} TEXT`);
+    }
+    const reportColumns = new Set((connection.prepare('PRAGMA table_info(reports)').all() as { name: string }[]).map(column => column.name));
+    if (!reportColumns.has('generation_key')) connection.exec('ALTER TABLE reports ADD COLUMN generation_key TEXT');
+    connection.exec('CREATE UNIQUE INDEX IF NOT EXISTS reports_generation_key ON reports(generation_key)');
     connection.exec('COMMIT');
   } catch (error) { connection.exec('ROLLBACK'); throw error; }
   try { fs.chmodSync(filename, 0o600); } catch { /* Some volume drivers omit chmod. */ }

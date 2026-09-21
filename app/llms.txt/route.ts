@@ -1,0 +1,10 @@
+import { getToolLibrary } from '@/lib/server/reuse';
+import { listReports } from '@/lib/server/evidence';
+import { publicUrl } from '@/lib/server/public-data';
+export const dynamic='force-dynamic';
+const label=(s:string)=>s.replace(/[\r\n\[\]<>]/g,' ').trim();
+export async function GET(){
+ const library=getToolLibrary();
+ const text=`# Alhena Research Lab\n\n> Alhena-operated, commissioned evaluations of ecommerce AI tools on real customer storefronts.\n\n## Scope\n\nShopping and support quality are separate scores out of 100, using 26 pinned quality criteria and fixed weights. Each tool evaluation uses three customer storefronts, six ten-turn conversations and two fixed question themes. These are selected deployment samples, not overall vendor rankings. No automation, speed or composite score is calculated. Separate AI judge and auditor calls do not establish institutional independence.\n\n## Dates and evidence\n\nAlways cite the original capture dates and sample limitations. Publication or creation of another comparison is not a fresh test. Automatic comparisons reuse compatible results for at most 30 days; older profiles remain historical. Comparison reports retain the source evidence and its limitations. Public summaries are available without login; full conversations, criterion decisions and evidence downloads require a verified work email.\n\n## Public sources\n\n- [All evaluated tools](${publicUrl('/')})\n- [Scoring rubric and methodology](${publicUrl('/methodology')})\n- [Machine-readable score summaries](${publicUrl('/tool-scores.json')})\n- [Sitemap](${publicUrl('/sitemap.xml')})\n\n## Tool profiles\n\n${library.tools.map(t=>`- [${label(t.name)}](${publicUrl(`/tools/${t.id}`)})`).join('\n')}\n\n## Comparison reports\n\n${listReports().filter(r=>r.vendors.length===2).map(r=>`- [${label(r.title)}](${publicUrl(`/reports/${r.slug}`)})`).join('\n')}\n`;
+ return new Response(text,{headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'public, max-age=0, must-revalidate'}});
+}

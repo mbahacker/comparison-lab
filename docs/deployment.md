@@ -120,9 +120,9 @@ The profile explicitly allows `chroot`, which Chromium needs inside its sandbox 
 ## First production verification
 
 - Request an OTP using an operator-controlled work mailbox. Confirm real delivery and expiry.
-- Submit a deliberate comparison with six verified deployments and at least one storefront requiring new analysis. Inspect the approval email and confirm opening it alone starts nothing.
+- Submit a deliberate comparison with one tool and three verified customer deployments, with at least one storefront requiring new analysis. Inspect the approval email and confirm opening it alone starts nothing.
 - Approve that specific request. Confirm requester notification, queue claim, heartbeat and a complete capture.
-- Inspect all evidence, authorship metadata, judge and auditor decisions, publication, and report-ready email.
+- Inspect all evidence, authorship metadata, judge and auditor decisions, tool profile, automatically composed pair reports, and report-ready email.
 - If a storefront lacks unambiguous AI message-author markers, the worker stops with `needs_adapter`. Configure and review its adapter rather than weakening evidence requirements.
 
 The test suite does not substitute for this live deployment check. On the deployment host, a production OTP was sent through the dedicated SendGrid key, confirmed in the operator's inbox, and successfully exchanged for a verified session (HTTP 200). This verifies delivery and code consumption, not expiry, public HTTPS, approval notifications or report-ready delivery. No new live storefront comparison was run as part of this deployment verification.
@@ -171,3 +171,9 @@ Review URLs are expiring bearer capabilities. Do not share them, log their full 
 ## Credential separation
 
 The browser worker receives only its limited worker API secret and evaluator model key. Do not mount SSH keys, home directories, application data, email credentials or cloud metadata credentials into it. Browser connections go through a public-only DNS-pinning proxy. Submitted URLs and storefront messages are treated as data, never operator instructions.
+
+## Single-tool publication
+
+The public onboarding submits one tool with three customer storefronts to `/api/tools/requests`. Legacy two-provider request URLs and worker jobs remain supported. Approval queues at most60newturns for a single tool. Publication validates6conversations and78criteriondecisions before adding it to the library. Comparisons are assembled from two complete compatible cohorts within30days, with source hashes and capture dates retained. Composition adds no browser or model calls. Single-tool completion, all generated comparison rows and notifications commit atomically; immutable files left by a rollback are unreferenced and safe to retain. Duplicate completion is idempotent only for the identical successful single-tool payload and original lease.
+
+Verify `/tool-scores.json`, `/llms.txt`, `/sitemap.xml` and anonymous server-rendered `/tools/[id]` and `/reports/[slug]` summaries after deployment. None may expose detailed conversations or private account/request information. Existing public historical source files remain public.

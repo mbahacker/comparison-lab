@@ -1,14 +1,14 @@
 # Alhena Research Lab
 
-A public evidence library and an approval-gated service for comparing AI shopping and support providers. Operated by Alhena; the project does not claim institutional independence or Gorgias endorsement.
+A public evidence library and an approval-gated service for evaluating AI shopping and support tools and composing evidence-backed comparisons. Operated by Alhena; the project does not claim institutional independence or Gorgias endorsement.
 
 ## What people can do
 
 1. Browse public comparison summaries and the rubric. Verify a work email address to inspect detailed conversations, scoring decisions and evidence downloads. Detail views and downloads notify the operator with the report title and viewer email; repeated access notifications are limited per viewer, report and action.
 2. Enter their name and work email, then verify mailbox ownership with a six-digit OTP.
-3. Enter two provider names and websites, plus three customer names and live storefront URLs for each provider. Company entry is freeform; known providers can prefill their previously evaluated storefronts. Compatible published analysis captured within the last 30 days is reused with its original dates and limitations. An existing exact comparison opens its report instead of queuing duplicate work.
-4. Submit the comparison for review. `ashu@alhena.ai` receives a private approval link. Opening the link has no side effects; an explicit approval confirms all six provider deployments and queues the missing work, or links a matching report published in the meantime.
-5. Receive an approval or rejection email. Approved requests run asynchronously; complete evidence is validated and published automatically, followed by a report-ready email.
+3. Enter one tool name and website, plus three customer names and live storefront URLs. Entry is freeform; known tools prefill their previously evaluated storefronts. Compatible published analysis captured within the last 30 days is reused with its original dates and limitations. An already evaluated tool opens its profile instead of queuing duplicate work.
+4. Submit the tool for review. `ashu@alhena.ai` receives a private approval link. Opening the link has no side effects; an explicit approval confirms the three tool deployments and queues the missing work, or links a matching report published in the meantime.
+5. Receive an approval or rejection email. Approved requests run asynchronously; complete evidence is validated and published automatically. The tool joins the library, and comparison reports are composed against every other compatible recent tool evaluation without extra capture or judging calls. The requester receives the tool and comparison links.
 
 The initial library includes the September 20, 2026 Alhena/Gorgias study, its original scores, full evidence and original session-isolation caveat. It is an imported historical study, not a new run performed by this application.
 
@@ -16,7 +16,7 @@ The detailed-evidence gate is enforced by the web API, including JSON and HTML d
 
 ## Evaluation scope
 
-`quality-pilot-v1` uses six storefronts, twelve ten-turn conversations, the `everyday-value` shopping theme and the `returns` support theme. All 26 published quality criteria and fixed weights apply. It is not the full five-theme benchmark or composite leaderboard. No speed or automation ranking is produced.
+`quality-pilot-v1` evaluates each tool on three storefronts and six ten-turn conversations, using the `everyday-value` shopping theme and the `returns` support theme. All 26 published quality criteria and fixed weights apply. It is not the full five-theme benchmark or composite leaderboard. No speed or automation ranking is produced.
 
 The worker uses fresh browser contexts, records real chat responses, runs separate AI judge and audit calls, and calculates scores deterministically. Unsupported or ambiguous widgets, unknown speakers, human takeover, incomplete captures and failed validation stop publication. Generic widget discovery cannot guarantee compatibility with every storefront; reviewed adapters can be configured by the operator.
 
@@ -117,3 +117,9 @@ This release targets a single-host SQLite deployment. Do not run multiple indepe
 Published evidence excludes requester contact information, OTPs, approval links and private operational notes. Contact details are used for verification, review, transactional updates and private report-access notifications to the operator. See the application's `/privacy` page.
 
 Public source availability is for inspection. No project-wide license is granted to third-party Gorgias material. Third-party assets and dependencies remain under their own licenses; see [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+## Tool library and discovery
+
+The homepage has All tools and Comparison reports views, with public tables, charts and original capture dates. `/tools/[id]` profiles use stable canonical website identities and select one complete three-storefront cohort, rather than blending arbitrary stores across past runs. Single-tool evidence is stored as an immutable report. Derived pair reports retain hashes and provenance; their rows, the source evaluation, completion state and email events commit together. Existing pair reports and private request URLs remain valid.
+
+Public tool and report summaries are server-rendered for search and agent readers. Canonical metadata, JSON-LD, `/sitemap.xml`, `/robots.txt`, `/llms.txt` and `/tool-scores.json` expose only public summaries and source links. No detailed transcripts or reader/requester identities are embedded in structured data. This enables discovery; it does not guarantee search ranking or inclusion in agent answers.

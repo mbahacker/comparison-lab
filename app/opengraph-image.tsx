@@ -1,7 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { ImageResponse } from "next/og";
-import { getReport, SEED_SLUG } from "@/lib/server/evidence";
+import { listReports } from "@/lib/server/evidence";
+import { getToolLibrary } from "@/lib/server/reuse";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +12,8 @@ export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
 export default function Image() {
-  const { report } = getReport(SEED_SLUG);
+  const { tools } = getToolLibrary();
+  const comparisonCount = listReports().filter(r => r.vendors.length === 2).length;
   return new ImageResponse(
     (
       <div
@@ -98,7 +100,7 @@ export default function Image() {
               color: "#475569",
             }}
           >
-            Shopping and support quality. Every conversation attached.
+            Shopping and support quality. Original evidence behind every score.
           </div>
         </div>
         <div
@@ -109,13 +111,13 @@ export default function Image() {
             color: "#5941AE",
           }}
         >
-          Featured quality pilot: {String(report.title).slice(0, 75)}
+          Evaluate one tool. Compare it across the library.
         </div>
         <div style={{ display: "flex", gap: 34, marginTop: 24 }}>
           {[
-            [report.storeCount, "storefronts"],
-            [report.turnCount, "live test turns"],
-            [report.criterionCount, "published criteria"],
+            [tools.length, "evaluated tools"],
+            [comparisonCount, "comparison reports"],
+            [26, "published criteria"],
           ].map(([value, label]) => (
             <div
               key={String(label)}
@@ -147,8 +149,7 @@ export default function Image() {
             color: "#475569",
           }}
         >
-          Alhena-commissioned quality pilot · Selected deployments · Full
-          evidence available
+          Alhena-commissioned quality studies · Selected deployments · Original capture dates
         </div>
       </div>
     ),

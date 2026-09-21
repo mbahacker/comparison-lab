@@ -21,7 +21,8 @@ import { api, post, Vendor } from "@/lib/client";
 import {
   CatalogProvider,
   FilledFields,
-  ReusePreview,
+  ToolReusePreview,
+  ExistingTool,
   certainProvider,
   fillKnownProvider,
   matchesProvider,
@@ -34,33 +35,23 @@ const blank = (): Vendor => ({
   website: "",
   customers: Array.from({ length: 3 }, () => ({ name: "", website: "" })),
 });
-export function RequestFlow() {
+export function RequestFlow({ initialProvider }: { initialProvider?: Pick<Vendor, "name" | "website"> }) {
   const [step, setStep] = useState(0),
     [user, setUser] = useState<User | null>(null),
     [name, setName] = useState(""),
     [email, setEmail] = useState(""),
     [code, setCode] = useState(""),
-    [vendors, setVendors] = useState<Vendor[]>([blank(), blank()]),
+    [provider, setProvider] = useState<Vendor>(() => ({ ...blank(), ...initialProvider })),
     [notes, setNotes] = useState(""),
     [consent, setConsent] = useState(false),
     [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [notice, setNotice] = useState(""),
     [requestId, setRequestId] = useState(""),
-    [preview, setPreview] = useState<ReusePreview | null>(null),
+    [preview, setPreview] = useState<ToolReusePreview | null>(null),
     [prior, setPrior] = useState<
       { id: string; status: string; providers: Vendor[] }[]
     >([]);
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const a = params.get("providerA")?.trim().slice(0, 100) || "";
-    const b = params.get("providerB")?.trim().slice(0, 100) || "";
-    if (a || b)
-      setVendors([
-        { ...blank(), name: a },
-        { ...blank(), name: b },
-      ]);
-  }, []);
   useEffect(() => {
     api<{ user: User | null; requests: typeof prior }>("/auth/session")
       .then((d) => {
@@ -70,8 +61,8 @@ export function RequestFlow() {
           setName(d.user.name);
           if (d.user.workEmailEligible !== false && d.user.name.trim()) setStep(2);
           else setNotice(d.user.workEmailEligible === false
-            ? "Detailed reports and new comparisons require a verified work email. Verify a work email below."
-            : "Your email is verified for reading reports. Add your name and verify your work email to request a comparison.");
+            ? "Detailed reports and new analyses require a verified work email. Verify a work email below."
+            : "Your email is verified for reading reports. Add your name and verify your work email to request a tool analysis.");
         }
         setPrior(d.requests || []);
       })
@@ -117,21 +108,22 @@ export function RequestFlow() {
       setUser(d.user);
       if (d.user.workEmailEligible === false || !d.user.name.trim()) {
         setStep(0);
-        setNotice("A name and verified work email are required to request a comparison.");
+        setNotice("A name and verified work email are required to request a tool analysis.");
         return;
       }
       setStep(2);
     });
   };
   const updateVendor = useCallback((index: number, value: Vendor) => {
-    setVendors(old => old.map((vendor, i) => i === index ? value : vendor));
+    if (index !== 0) return;
+    setProvider(value);
     setPreview(null);
     setConsent(false);
   }, []);
   const review = (event: FormEvent) => {
     event.preventDefault();
     run(async () => {
-      const result = await post<ReusePreview>("/reuse/preview", { providers: vendors });
+      const result = await post<ToolReusePreview>("/tools/reuse/preview", { provider });
       setPreview(result);
       setConsent(false);
       setStep(3);
@@ -139,14 +131,14 @@ export function RequestFlow() {
   };
   const submit = () =>
     run(async () => {
-      if (!preview || preview.existingReport) return;
-      const d = await post<{ request?: { id: string }; existingReport?: { slug: string; title: string } }>("/requests", {
-        providers: vendors,
+      if (!preview || preview.existingTool) return;
+      const d = await post<{ request?: { id: string }; existingTool?: ExistingTool }>("/tools/requests", {
+        provider,
         notes,
         consent,
       });
-      if (d.existingReport) {
-        setPreview({ ...preview, existingReport: d.existingReport });
+      if (d.existingTool) {
+        setPreview({ ...preview, existingTool: d.existingTool });
         setConsent(false);
         return;
       }
@@ -159,25 +151,25 @@ export function RequestFlow() {
     <main id="main" className="shell request-page">
       <Link href="/" className="back-link">
         <ArrowLeft size={16} />
-        Report library
+        Tool library
       </Link>
       <div className="request-grid">
         <aside>
-          <p className="eyebrow">A NEW COMPARISON</p>
+          <p className="eyebrow">ANALYZE YOUR TOOL</p>
           <h1>
-            Put the answers
+            Analyze
             <br />
-            to the test.
+            your tool.
           </h1>
           <p className="intro">
-            Two providers. Three storefronts each.
+            One tool. Three customer storefronts.
             <br />
             One published quality rubric.
           </p>
           <ol className="steps">
             {[
               "Verify your work email",
-              "Choose providers & storefronts",
+              "Add your tool & storefronts",
               "Review & submit",
             ].map((s, i) => (
               <li
@@ -193,7 +185,8 @@ export function RequestFlow() {
             <ShieldCheck size={22} />
             <p>
               Every request is reviewed before testing starts. Approved
-              comparisons use the same questions and scoring rules.
+              analyses use the same questions and scoring rules. Compatible
+              results become comparison reports without retesting each tool.
             </p>
             <Link href="/methodology">
               Read the methodology <ExternalLink size={13} />
@@ -355,16 +348,14 @@ export function RequestFlow() {
                 </button>
               </div>
               <p className="eyebrow">STEP 02</p>
-              <h2 id={step === 2 ? "flow-heading" : undefined}>What should we compare?</h2>
+              <h2 id={step === 2 ? "flow-heading" : undefined}>Which tool should we analyze?</h2>
               <p className="muted">
-                Enter two AI providers and three customer storefronts where each
-                is deployed. Include the exact storefront URLs where the live
+                Enter one AI tool and three customer storefronts where it
+                is deployed. Include the exact storefront URLs where its live
                 chat is available. We’ll look for published analyses as you type.
               </p>
-              {vendors.map((vendor, index) => (
-                <ProviderFields key={index} index={index} value={vendor}
-                  active={step === 2 && !busy} onChange={updateVendor} />
-              ))}
+              <ProviderFields index={0} value={provider}
+                active={step === 2 && !busy} onChange={updateVendor} />
               <label className="field">
                 Anything the reviewer should know?{" "}
                 <span className="optional">Optional</span>
@@ -377,32 +368,37 @@ export function RequestFlow() {
                 />
               </label>
               <Button className="primary-button full" disabled={busy}>
-                {busy ? "Checking existing comparisons…" : "Review comparison"}
+                {busy ? "Checking existing analysis…" : "Review analysis"}
                 <ArrowRight size={16} />
               </Button>
             </form>
           {step === 3 && (
             <div>
               <p className="eyebrow">STEP 03</p>
-              <h2 id="flow-heading">{preview?.existingReport ? "This comparison is already available." : "Ready for review."}</h2>
+              <h2 id="flow-heading">{preview?.existingTool ? "This tool already has a current analysis." : "Ready for review."}</h2>
               <p className="muted">
-                {preview?.existingReport
-                  ? "These providers and storefronts already have a published comparison. You can explore its results now."
-                  : "Check the companies, storefronts and planned work below. Each comparison covers 12 conversations under the published rubric."}
+                {preview?.existingTool
+                  ? "All six conversations for these storefronts have eligible analysis from the last 30 days. Explore the tool’s results now."
+                  : "Check your tool, storefronts and planned work below. Each tool analysis covers six conversations and 60 turns under the published rubric."}
               </p>
               {preview && <ReuseSummary preview={preview} />}
-              <ComparisonDetails vendors={vendors} />
+              <ComparisonDetails vendors={[provider]} />
               {notes && <p className="review-note">{notes}</p>}
-              {!preview?.existingReport && <>
+              {!preview?.existingTool && <>
               <div className="request-scope">
                 <strong>What happens next</strong>
                 <p>
                   A reviewer checks your request. If approved, we email you and
                   reuse eligible published evidence and test the remaining
-                  storefronts. A complete report that passes validation
-                  is published, and we email you its link. Incomplete or blocked
+                  storefronts. A complete tool analysis that passes validation
+                  is published, and we email you its profile link. Incomplete or blocked
                   runs do not publish.
                 </p>
+                <p>We generate comparison reports against compatible tool analyses
+                  already in the library, using captures from the last 30 days.
+                  If no compatible analysis is available, your tool profile is
+                  published on its own. Older tools are not retested without a
+                  new approved request.</p>
               </div>
               <label className="checkbox-label">
                 <Checkbox
@@ -410,8 +406,9 @@ export function RequestFlow() {
                   onCheckedChange={(v) => setConsent(v === true)}
                 />
                 <span>
-                  I understand that this comparison, its storefronts and test
-                  evidence will be public if completed. My name and email remain
+                  I understand that this tool analysis, its storefronts, evidence
+                  and comparisons generated from it will be published if completed.
+                  My name and email remain
                   private.
                 </span>
               </label>
@@ -425,7 +422,7 @@ export function RequestFlow() {
                   <ArrowLeft size={16} />
                   Edit details
                 </Button>
-                {!preview?.existingReport && <Button
+                {!preview?.existingTool && <Button
                   className="primary-button"
                   disabled={busy || !consent || !preview}
                   onClick={submit}
@@ -442,16 +439,16 @@ export function RequestFlow() {
                 <Check size={28} />
               </span>
               <p className="eyebrow">REQUEST RECEIVED</p>
-              <h2 id="flow-heading">Your comparison is in review.</h2>
+              <h2 id="flow-heading">Your tool analysis is in review.</h2>
               <p>
                 We’ll email <strong>{email}</strong> after a decision, and again
-                when a completed report is published.
+                when the completed analysis is published.
               </p>
               <Link className="button primary" href={`/requests/${requestId}`}>
                 View request status <ArrowRight size={16} />
               </Link>
               <Link className="text-link" href="/">
-                Back to the report library
+                Back to the tool library
               </Link>
             </div>
           )}
@@ -476,7 +473,7 @@ function ProviderFields({ index, value, active, onChange }: {
 
   useEffect(() => {
     if (!active) return;
-    const query = providerLookupQuery(value);
+    const query = providerLookupQuery({ name: value.name, website: value.website });
     if (query.length < 2) return;
     const controller = new AbortController();
     const timer = setTimeout(async () => {
@@ -537,19 +534,19 @@ function ProviderFields({ index, value, active, onChange }: {
   const searched = value.name.trim().length >= 2 || value.website.trim().length >= 2;
   return (
     <fieldset className="vendor-fieldset" disabled={!active}>
-      <legend><span>{index === 0 ? "A" : "B"}</span>Provider {index + 1}</legend>
+      <legend>Your AI tool</legend>
       <div className="field-row">
-        <label className="field">Provider name
-          <Input required maxLength={100} value={value.name} onChange={event => change("name", event.target.value)} placeholder={index === 0 ? "e.g. Alhena" : "e.g. Gorgias"} />
+        <label className="field">Tool name
+          <Input required maxLength={100} value={value.name} onChange={event => change("name", event.target.value)} placeholder="e.g. Alhena" />
         </label>
-        <label className="field">Provider website
-          <Input required type="url" maxLength={2048} value={value.website} onChange={event => change("website", event.target.value)} placeholder="https://provider.com" />
+        <label className="field">Tool website
+          <Input required type="url" maxLength={2048} value={value.website} onChange={event => change("website", event.target.value)} placeholder="https://yourtool.com" />
         </label>
       </div>
       <div aria-live="polite" className="text-sm">
         {lookup === "loading" && <p className="muted">Looking for published analyses…</p>}
         {lookup === "failed" && <p className="muted">Suggestions are temporarily unavailable. You can enter the storefronts below; we’ll check for existing evidence before submission.</p>}
-        {lookup === "done" && searched && catalog.length === 0 && <p className="muted">No published provider match yet. Add the storefronts you want evaluated.</p>}
+        {lookup === "done" && searched && catalog.length === 0 && <p className="muted">No published tool match yet. Add the storefronts you want evaluated.</p>}
       </div>
       {match ? (
         <div className="request-scope" aria-label={`Published analyses for ${match.name}`}>
@@ -570,7 +567,7 @@ function ProviderFields({ index, value, active, onChange }: {
         </div>
       ) : catalog.length > 0 && (
         <div className="request-scope">
-          <strong>Existing providers that may match</strong>
+          <strong>Existing tools that may match</strong>
           <p>Choose a match to use its details, or keep entering your own.</p>
           <div className="mt-3 flex flex-col gap-3">
             {catalog.slice(0, 3).map((provider, i) => <Button key={`${provider.website}-${i}`} type="button" variant="outline" className="h-auto whitespace-normal py-3 text-left" onClick={() => applyProvider(provider)}>
@@ -583,10 +580,10 @@ function ProviderFields({ index, value, active, onChange }: {
       {value.customers.map((customer, j) => <div className="customer-row" key={j}>
         <span className="customer-number">0{j + 1}</span>
         <label className="field">Customer name
-          <Input required maxLength={100} aria-label={`Provider ${index + 1}, customer ${j + 1} name`} value={customer.name} onChange={event => change("name", event.target.value, j)} placeholder="Company name" />
+          <Input required maxLength={100} aria-label={`Customer ${j + 1} name`} value={customer.name} onChange={event => change("name", event.target.value, j)} placeholder="Company name" />
         </label>
         <label className="field">Storefront URL
-          <Input required type="url" maxLength={2048} aria-label={`Provider ${index + 1}, customer ${j + 1} storefront URL`} value={customer.website} onChange={event => change("website", event.target.value, j)} placeholder="https://store.com" />
+          <Input required type="url" maxLength={2048} aria-label={`Customer ${j + 1} storefront URL`} value={customer.website} onChange={event => change("website", event.target.value, j)} placeholder="https://store.com" />
         </label>
       </div>)}
     </fieldset>
@@ -601,14 +598,15 @@ function analysisExpired(value?: string) {
   return Boolean(value && Number.isFinite(Date.parse(value)) && Date.now() - Date.parse(value) > 30 * 86_400_000);
 }
 
-function ReuseSummary({ preview }: { preview: ReusePreview }) {
-  if (preview.existingReport) return <div className="request-scope" role="status">
+function ReuseSummary({ preview }: { preview: ToolReusePreview }) {
+  if (preview.existingTool) return <div className="request-scope" role="status">
     <strong>Already completed. No new request is needed.</strong>
-    <p><Link className="button primary" href={`/reports/${encodeURIComponent(preview.existingReport.slug)}`}>{preview.existingReport.title} <ArrowRight size={16} /></Link></p>
+    <p><Link className="button primary" href={`/tools/${encodeURIComponent(preview.existingTool.id)}`}>Explore {preview.existingTool.name} <ArrowRight size={16} /></Link></p>
   </div>;
   return <div className="request-scope" role="status">
     <strong>What is already covered, and what is new</strong>
-    {preview.previousReport && <p>An earlier comparison exists, but its evidence needs refreshing. <Link className="text-link" href={`/reports/${encodeURIComponent(preview.previousReport.slug)}`}>View {preview.previousReport.title} <ExternalLink size={12} /></Link></p>}
+    {preview.previousTool ? <p>An earlier tool analysis exists, but its evidence needs refreshing. <Link className="text-link" href={`/tools/${encodeURIComponent(preview.previousTool.id)}`}>View {preview.previousTool.name} <ExternalLink size={12} /></Link></p>
+      : preview.previousReport && <p>An earlier analysis exists, but its evidence needs refreshing. <Link className="text-link" href={`/reports/${encodeURIComponent(preview.previousReport.slug)}`}>View {preview.previousReport.title} <ExternalLink size={12} /></Link></p>}
     <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div><span className="block text-2xl font-semibold">{preview.reusedConversations}</span><span className="text-sm">conversations reused</span><p>{preview.reusedStores} storefronts are fully covered by existing evidence.</p></div>
       <div><span className="block text-2xl font-semibold">{preview.newConversations}</span><span className="text-sm">new conversations</span><p>{preview.newStores} storefronts need new testing after approval.</p></div>
@@ -619,11 +617,11 @@ function ReuseSummary({ preview }: { preview: ReusePreview }) {
 
 export function ComparisonDetails({ vendors }: { vendors: Vendor[] }) {
   return (
-    <div className="comparison-details">
+    <div className="comparison-details" style={vendors.length === 1 ? { gridTemplateColumns: "1fr" } : undefined}>
       {vendors.map((v, i) => (
         <div key={i}>
           <div className="provider-detail">
-            <span className="provider-letter">{i === 0 ? "A" : "B"}</span>
+            <span className="provider-letter">{vendors.length === 1 ? "AI" : String.fromCharCode(65 + i)}</span>
             <div>
               <h3>{v.name}</h3>
               <a href={safeUrl(v.website)} target="_blank" rel="noreferrer">

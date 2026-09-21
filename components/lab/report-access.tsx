@@ -7,8 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ShareReportButton } from "@/components/lab/share-report";
 
-export function ReportAccess({ slug, children }: { slug: string; children: (onVerificationRequired: () => void) => ReactNode }) {
-  const [report, setReport] = useState<ReportSummary | null>(null);
+export function ReportAccess({ slug, initialReport, children }: { slug: string; initialReport?: ReportSummary; children: (onVerificationRequired: () => void) => ReactNode }) {
+  const [report, setReport] = useState<ReportSummary | null>(initialReport || null);
   const [verified, setVerified] = useState(false);
   const [requested, setRequested] = useState(false);
   const [error, setError] = useState("");
@@ -43,7 +43,7 @@ export function ReportAccess({ slug, children }: { slug: string; children: (onVe
       {report.scores.map((entry,index) => <div className="summary-score-row" key={entry.vendor}><div><span>{entry.vendor}</span><strong>{score(entry[mode])}<small> / 100</small></strong></div><div className="summary-score-track"><span className={index === 0 ? "primary-score" : "secondary-score"} style={{width:`${Math.max(0, Math.min(100,entry[mode]))}%`}} /></div></div>)}
       <p className="private-note">Mean score across each provider’s selected storefronts.</p>
     </section>)}</div>
-    <div className="caveat"><strong>Read the sample in context.</strong><p>Different storefront deployments and configurations. These quality scores do not establish an overall vendor ranking.</p>{(report.limitations || []).map(value => <p key={value}>{value}</p>)}</div>
+    <div className="caveat"><strong>Read the sample in context.</strong><p>Different storefront deployments and configurations. These quality scores do not establish an overall vendor ranking.</p>{report.captureStartAt && <p>Original captures: {date(report.captureStartAt)}{report.captureEndAt && report.captureEndAt !== report.captureStartAt ? ` to ${date(report.captureEndAt)}` : ""}. Publication does not imply a new test.</p>}{(report.limitations || []).map(value => <p key={value}>{value}</p>)}</div>
     <div ref={gate} className="report-access-panel">
       <div><p className="eyebrow">THE EVIDENCE BEHIND THE SCORES</p><h2>See every answer and scoring decision.</h2><p>Explore the full conversations, storefront results, criterion decisions and audit notes. Download the complete evidence.</p>
       <p className="private-note"><Check size={15} /> Summary and published rubric are open to everyone. Detailed access uses a verified work email.</p></div>

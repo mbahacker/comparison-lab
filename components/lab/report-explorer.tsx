@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { QualityDashboard } from "@/components/lab/quality-charts";
 import { ShareReportButton } from "@/components/lab/share-report";
 import { ReportAccess } from "@/components/lab/report-access";
-import { ReportSummary, score, date } from "@/lib/client";
+import { ReportSummary, date } from "@/lib/client";
 type Criterion = {
   id: string;
   mode: string;
@@ -68,8 +68,8 @@ type Evidence = {
   notes?: { id: string; title: string; category: string; markdown: string }[];
   [key: string]: unknown;
 };
-export function ReportExplorer({ slug }: { slug: string }) {
-  return <ReportAccess slug={slug}>{(onVerificationRequired) => <DetailedReport slug={slug} onVerificationRequired={onVerificationRequired} />}</ReportAccess>;
+export function ReportExplorer({ slug, initialReport }: { slug: string; initialReport?: ReportSummary }) {
+  return <ReportAccess key={slug} slug={slug} initialReport={initialReport}>{(onVerificationRequired) => <DetailedReport slug={slug} onVerificationRequired={onVerificationRequired} />}</ReportAccess>;
 }
 function DetailedReport({ slug, onVerificationRequired }: { slug: string; onVerificationRequired: () => void }) {
   const [downloadBusy, setDownloadBusy] = useState(false), [downloadError, setDownloadError] = useState("");
@@ -493,17 +493,17 @@ function DetailedReport({ slug, onVerificationRequired }: { slug: string; onVeri
       </Tabs>
       <section className="share-strip">
         <div>
-          <h3>What does your shortlist look like?</h3>
+          <h3>How does your tool perform?</h3>
           <p>
-            Request a comparison using the same published criteria on the
-            storefronts your team wants to evaluate.
+            Submit one tool and three customer storefronts. Its validated evaluation
+            joins the library and creates comparisons with eligible existing tools.
           </p>
         </div>
         <Link
           className="button primary"
-          href={`/request?${new URLSearchParams({ providerA: report.vendors[0] || "", providerB: report.vendors[1] || "" })}`}
+          href="/request"
         >
-          Request a comparison <ExternalLink size={16} />
+          Analyze your tool <ExternalLink size={16} />
         </Link>
       </section>
     </main>

@@ -1,15 +1,75 @@
 "use client";
-import {useEffect,useState} from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
-import {Check,ShieldCheck} from "lucide-react";
-import {Button} from "@/components/ui/button";
-import {Checkbox} from "@/components/ui/checkbox";
-import {api,post,Vendor,date} from "@/lib/client";
-import {ComparisonDetails} from "./request-flow";
-type Review={request:{id:string;status:string;providers:Vendor[];createdAt:string;notes?:string;reviewNote?:string};requester:{name:string;email:string};expiresAt:string;decided:boolean};
-export function AdminReview({token}:{token:string}){
- const [data,setData]=useState<Review|null>(null),[error,setError]=useState(""),[busy,setBusy]=useState(false),[note,setNote]=useState(""),[confirmed,setConfirmed]=useState(false),[done,setDone]=useState(false);
- useEffect(()=>{if(!token){setError("Open the private review link from your approval email.");return;}api<Review>(`/review/${encodeURIComponent(token)}`).then(setData).catch(e=>setError(e.message));},[token]);
- async function decide(decision:"approve"|"reject"){setBusy(true);setError("");try{await post(`/review/${encodeURIComponent(token)}`,{decision,note,confirmAttribution:confirmed});setDone(true);setData(d=>d?{...d,decided:true,request:{...d.request,status:decision==="approve"?"queued":"rejected"}}:d);}catch(e){setError(e instanceof Error?e.message:"Unable to save your decision.");}finally{setBusy(false);}}
- return <main id="main" className="shell prose-page"><p className="eyebrow">PRIVATE APPROVAL</p><h1>Review comparison.</h1>{error&&<div className="error-box" role="alert">{error}</div>}{!data&&!error&&<p role="status">Loading the request…</p>}{data&&<div className="status-card"><div className="status-header"><ShieldCheck size={21}/><span className="status-label">{data.request.status.replaceAll("_"," ")}</span></div><h2>{data.request.providers.map(v=>v.name).join(" vs. ")}</h2><p>Requested by <strong>{data.requester.name}</strong> · {data.requester.email}<br/>Submitted {date(data.request.createdAt)}</p><ComparisonDetails vendors={data.request.providers}/>{data.request.notes&&<div className="request-scope"><strong>Requester’s context</strong><p>{data.request.notes}</p></div>}{data.decided||done?<div className="notice"><Check size={18}/><p>Your decision is saved. {data.request.status==="queued"?"The run is queued, and an approval notification is scheduled for the requester.":"The requester will receive the decision by email."}</p><Link href="/">Return to reports</Link></div>:<><div className="request-scope"><strong>This approval starts a live evaluation.</strong><p>Six storefronts, 12 conversations, 120 turns. Complete reports publish automatically after validation. Unsupported widgets, incomplete evidence or unresolved audit issues stop publication.</p></div><label className="checkbox-label"><Checkbox checked={confirmed} onCheckedChange={v=>setConfirmed(v===true)}/><span>I reviewed all six storefronts and verified that the named provider is deployed on each. The submitted comparison is suitable for this shopping and support rubric.</span></label><label className="field" style={{marginTop:24}}>Message for the requester <span className="optional">Optional</span><textarea maxLength={2000} rows={3} value={note} onChange={e=>setNote(e.target.value)} placeholder="Explain an approval condition or why the request is being declined."/></label><div className="form-actions"><Button variant="outline" disabled={busy} onClick={()=>decide("reject")}>Decline request</Button><Button className="primary-button" disabled={busy||!confirmed} onClick={()=>decide("approve")}>{busy?"Saving…":"Approve & queue evaluation"}</Button></div><p className="private-note">This link is private. Opening it does not approve or start a run.</p></>}</div>}</main>;
+import { Check, ShieldCheck } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
+import { api, post, date } from "@/lib/client";
+import type { AnalysisRequest, ExistingTool, ReusePreview } from "@/lib/reuse-client";
+import { ComparisonDetails } from "./request-flow";
+
+type Review = {
+  request: AnalysisRequest;
+  requester: { name: string; email: string };
+  expiresAt: string;
+  decided: boolean;
+  reuse?: ReusePreview & { existingTool?: ExistingTool };
+};
+export function AdminReview({ token }: { token: string }) {
+  const [data, setData] = useState<Review | null>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const [confirmed, setConfirmed] = useState(false);
+  useEffect(() => {
+    if (!token) return;
+    const controller = new AbortController();
+    api<Review>(`/review/${encodeURIComponent(token)}`, { signal: controller.signal })
+      .then(result => { if (!controller.signal.aborted) { setData(result); setError(""); } })
+      .catch(failure => { if (!controller.signal.aborted) setError(failure.message); });
+    return () => controller.abort();
+  }, [token]);
+  async function decide(decision: "approve" | "reject") {
+    setBusy(true); setError("");
+    try {
+      const result = await post<{ request: AnalysisRequest }>(`/review/${encodeURIComponent(token)}`, { decision, note, confirmAttribution: confirmed });
+      if (!result.request?.status) throw new Error("The saved decision could not be confirmed. Refresh this page to check its status.");
+      setData(previous => previous ? { ...previous, decided: true, request: result.request } : previous);
+    } catch (failure) { setError(failure instanceof Error ? failure.message : "Unable to save your decision."); }
+    finally { setBusy(false); }
+  }
+  const isTool = data?.request.kind === "tool" || data?.request.providers.length === 1;
+  const stores = data?.request.providers.reduce((count, provider) => count + provider.customers.length, 0) || 0;
+  const target = data?.request.toolId ? `/tools/${encodeURIComponent(data.request.toolId)}` : data?.request.reportSlug ? `/reports/${encodeURIComponent(data.request.reportSlug)}` : null;
+  const errorText = !token ? "Open the private review link from your approval email." : error;
+  return <main id="main" className="shell prose-page">
+    <p className="eyebrow">PRIVATE APPROVAL</p>
+    <h1>{data ? isTool ? "Review tool analysis." : "Review comparison." : "Review request."}</h1>
+    {errorText && <div className="error-box" role="alert">{errorText}</div>}
+    {!data && !errorText && <p role="status">Loading the request…</p>}
+    {data && <div className="status-card">
+      <div className="status-header"><ShieldCheck size={21} /><span className="status-label">{data.request.status.replaceAll("_", " ")}</span></div>
+      <h2>{data.request.providers.map(provider => provider.name).join(" vs. ")}</h2>
+      <p>Requested by <strong>{data.requester.name}</strong> · {data.requester.email}<br />Submitted {date(data.request.createdAt)}</p>
+      <ComparisonDetails vendors={data.request.providers} />
+      {data.request.notes && <div className="request-scope"><strong>Requester’s context</strong><p>{data.request.notes}</p></div>}
+      {data.decided ? <div className="notice"><Check size={18} /><div>
+        <p>Your decision is saved. {data.request.status === "queued" ? "The approved run is queued." : data.request.status === "published" ? "The completed analysis is available." : data.request.status === "rejected" ? "The request was declined." : `Current request status: ${data.request.status.replaceAll("_", " ")}.`} Requester updates are sent by email.</p>
+        {target && <p><Link className="text-link" href={target}>{data.request.toolId ? "Open tool profile" : "Open report"}</Link></p>}
+        <Link href="/">Return to the library</Link>
+      </div></div> : <>
+        <div className="request-scope">
+          <strong>{isTool ? "Approve one tool analysis." : "Approve this comparison."}</strong>
+          <p>{stores} storefronts, {stores * 2} conversations, at most {stores * 20} new turns. Eligible analysis from the last 30 days is reused. The current plan is checked again before execution.</p>
+          {data.reuse && <p>{data.reuse.reusedConversations} conversations have reusable evidence; {data.reuse.newConversations} need new testing. {(data.reuse.existingTool || data.reuse.existingReport) && "A current complete analysis already exists, so approval links to it without starting another run."}</p>}
+          <p>Completed evidence publishes after validation. Unsupported widgets, incomplete evidence or unresolved audit issues stop publication.</p>
+          {isTool && <p>The tool is analyzed once. Comparison reports are generated against compatible tool analyses in the library using captures from the last 30 days. Other tools’ expired analyses are not refreshed without separate approval.</p>}
+        </div>
+        <label className="checkbox-label"><Checkbox disabled={busy} checked={confirmed} onCheckedChange={value => setConfirmed(value === true)} /><span>I reviewed all {stores} storefronts and verified that the named {isTool ? "tool is" : "providers are"} deployed as submitted. This request is suitable for the shopping and support rubric.</span></label>
+        <label className="field" style={{ marginTop: 24 }}>Message for the requester <span className="optional">Optional</span><textarea disabled={busy} maxLength={2000} rows={3} value={note} onChange={event => setNote(event.target.value)} placeholder="Explain an approval condition or why the request is being declined." /></label>
+        <div className="form-actions"><Button variant="outline" disabled={busy} onClick={() => decide("reject")}>Decline request</Button><Button className="primary-button" disabled={busy || !confirmed} onClick={() => decide("approve")}>{busy ? "Saving…" : "Approve request"}</Button></div>
+        <p className="private-note">This link is private. Opening it does not approve or start a run.</p>
+      </>}
+    </div>}
+  </main>;
 }

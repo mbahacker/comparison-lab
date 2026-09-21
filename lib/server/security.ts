@@ -59,8 +59,8 @@ export function publicWebsite(value: unknown) {
   return url.href;
 }
 
-export function providersInput(value: unknown): Provider[] {
-  if (!Array.isArray(value) || value.length !== 2) throw new ApiError(400, 'Add exactly two companies to compare.');
+export function providersInput(value: unknown, count: 1 | 2 = 2): Provider[] {
+  if (!Array.isArray(value) || value.length !== count) throw new ApiError(400, count === 1 ? 'Add exactly one tool to evaluate.' : 'Add exactly two companies to compare.');
   const seenStores = new Set<string>();
   const providers = value.map((p, index) => {
     if (!p || typeof p !== 'object') throw new ApiError(400, 'Each company needs a name and website.');
@@ -79,7 +79,7 @@ export function providersInput(value: unknown): Provider[] {
     });
     return { name, website, customers };
   });
-  if (providers[0].name.toLowerCase() === providers[1].name.toLowerCase() || new URL(providers[0].website).hostname === new URL(providers[1].website).hostname) throw new ApiError(400, 'Choose two different companies.');
+  if (count === 2 && (providers[0].name.toLowerCase() === providers[1].name.toLowerCase() || new URL(providers[0].website).hostname.replace(/^www\./, '') === new URL(providers[1].website).hostname.replace(/^www\./, ''))) throw new ApiError(400, 'Choose two different companies.');
   return providers;
 }
 

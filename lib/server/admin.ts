@@ -22,7 +22,7 @@ export async function adminCommand(command: string, requestId?: string) {
     transaction(() => {
       const reviewToken = token();
       db().prepare('UPDATE requests SET review_token_hash=?,review_expires_at=?,updated_at=? WHERE id=?').run(hash(reviewToken), Date.now() + 604_800_000, iso(), row.id);
-      enqueueMail(`request:${row.id}:reissue:${randomUUID()}`, config().adminEmail, 'Comparison review link renewed', `A pending request has a new seven-day review link. Opening it does not approve or start the run.\n\n${config().appUrl}/review/${reviewToken}\n\nRequest ID: ${row.id}`);
+      enqueueMail(`request:${row.id}:reissue:${randomUUID()}`, config().adminEmail, JSON.parse(row.providers_json).length === 1 ? 'Tool evaluation review link renewed' : 'Comparison review link renewed', `A pending request has a new seven-day review link. Opening it does not approve or start the run.\n\n${config().appUrl}/review/${reviewToken}\n\nRequest ID: ${row.id}`);
     });
     await flushOutbox();
     return { ok: true, requestId: row.id, message: 'A new review email was queued. All prior review links are invalid.' };

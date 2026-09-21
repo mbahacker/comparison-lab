@@ -37,11 +37,11 @@ export default function Page() {
       </p>
       <div className="method-grid">
         <div className="method-card">
-          <h3>One bounded comparison</h3>
+          <h3>One tool at a time</h3>
           <p>
-            Two providers, three selected storefronts each. One ten-turn
-            shopping conversation and one ten-turn returns conversation per
-            storefront: 12 conversations and 120 turns.
+            One tool, three selected customer storefronts. One ten-turn shopping
+            conversation and one ten-turn returns conversation per storefront:
+            six conversations, 60 turns and 78 criterion decisions per tool.
           </p>
         </div>
         <div className="method-card">
@@ -137,6 +137,14 @@ export default function Page() {
       </p>
       <h2>What a score does not prove</h2>
       <div className="prose-content">
+        <p>
+          The tool library shows one complete three-storefront evaluation for each
+          tool. After a new evaluation passes validation, comparison reports are
+          assembled against other compatible, recent tool evaluations. Each pair
+          contains 12 source conversations and 120 captured turns; composing the
+          report does not run new conversations or judge them again. Repeated use
+          in comparison reports does not increase a tool’s sample size.
+        </p>
         <p>
           Compatible analysis may be reused for 30 days from its original capture
           date. Reused conversations link to their source report and retain their

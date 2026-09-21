@@ -1,0 +1,19 @@
+"use client";
+import Link from 'next/link';
+import { ArrowLeft, ArrowRight, ExternalLink } from 'lucide-react';
+import { ToolSummary, ReportSummary, score, date } from '@/lib/client';
+import { captureDates, ComparisonCard, Freshness } from './report-library';
+export function ToolProfile({tool,comparisons}:{tool:ToolSummary;comparisons:ReportSummary[]}) {
+ return <main id="main" className="shell report-page tool-profile"><Link href="/#tools" className="back-link"><ArrowLeft size={16}/>All evaluated tools</Link>
+  <div className="report-heading"><div><p className="eyebrow">TOOL EVALUATION · QUALITY PILOT</p><h1>{tool.name}</h1><p className="intro">Shopping and support quality across three selected customer storefronts, using the same 26 published criteria.</p><a className="text-link" href={tool.website} target="_blank" rel="noreferrer">{new URL(tool.website).hostname}<ExternalLink size={15}/></a></div><Freshness fresh={tool.fresh}/></div>
+  <div className="tool-score-hero">{(['shopping','support'] as const).map(lane=><section className={`tool-score-panel ${lane}`} key={lane}><p className="eyebrow">{lane.toUpperCase()} QUALITY</p><div><strong>{score(tool.scores[lane])}</strong><span>/ 100</span></div><p>Mean of three storefront conversations.</p></section>)}</div>
+  <div className="report-stats">{[[tool.storeCount,'Storefronts'],[tool.conversationCount,'Conversations'],[tool.turnCount,'Captured turns'],[26,'Published criteria']].map(([v,l])=><div key={l}><strong>{v}</strong><span>{l}</span></div>)}</div>
+  <p className="tool-capture-note">Original capture dates: <strong>{captureDates(tool)}</strong>. {tool.fresh ? `Eligible for new comparisons until ${date(tool.expiresAt)}.` : 'These results remain available as historical evidence. A fresh evaluation is needed before creating new comparisons.'}</p>
+  <div className="hero-actions"><Link className="button primary" href={`/reports/${tool.reportSlug}#view=conversations`}>Explore detailed evidence <ArrowRight size={17}/></Link><Link className="button outline-button" href={`/request?${new URLSearchParams({provider:tool.name,website:tool.website})}`}>{tool.fresh?'View evaluation availability':'Request a fresh evaluation'}<ArrowUpRightIcon/></Link></div>
+  <p className="private-note">Summaries are public. Detailed conversations and scoring decisions require a verified work email.</p>
+  <section className="library-section"><p className="eyebrow">BEHIND THE TOOL SCORE</p><h2>Three deployments. Every result visible.</h2><div className="data-table-wrap"><table className="data-table"><thead><tr><th>Customer storefront</th><th>Shopping /100</th><th>Support /100</th><th>Captured</th></tr></thead><tbody>{tool.customers.map(c=><tr key={c.website}><td><a href={c.website} rel="noreferrer" target="_blank">{c.name}<ExternalLink size={13}/></a></td><td>{score(c.shopping)}</td><td>{score(c.support)}</td><td>{captureDates({oldestCaptureAt:c.oldestCaptureAt || c.capturedAt,evaluatedAt:c.capturedAt})}</td></tr>)}</tbody></table></div></section>
+  <section className="library-section"><p className="eyebrow">SIDE BY SIDE</p><h2>{tool.name} comparison reports</h2><p>Reports retain their own capture dates and source evaluations. Historical reports may use an earlier evaluation than this profile.</p><div className="report-list">{comparisons.map(r=><ComparisonCard key={r.slug} report={r}/>)}</div>{!comparisons.length&&<div className="empty-state">Comparison reports appear when another compatible tool evaluation is available within the 30-day window.</div>}</section>
+  <div className="caveat"><strong>Scope and limitations</strong><p>Operated and commissioned by Alhena Research Lab. Scores describe this selected sample, not universal tool performance or an overall vendor ranking.</p>{tool.limitations.map(l=><p key={l}>{l}</p>)}<Link href="/methodology">Read the scoring rubric and methodology</Link></div>
+ </main>;
+}
+function ArrowUpRightIcon(){return <ExternalLink size={16}/>;}

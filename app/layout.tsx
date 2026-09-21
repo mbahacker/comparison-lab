@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     siteName: "Alhena Research Lab",
     title: "Put ecommerce AI to the test",
     description:
-      "Compare shopping and support quality. Inspect every conversation or request your own comparison.",
+      "Explore ecommerce AI tool evaluations, compare shopping and support quality, and analyze your tool using the same published rubric.",
   },
   twitter: { card: "summary_large_image" },
   title: {
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: "%s · Alhena Research Lab",
   },
   description:
-    "Explore AI shopping and support comparisons, inspect the evidence, or request a new evaluation using the same published rubric.",
+    "Explore evaluated ecommerce AI tools, public quality scores and evidence-backed comparison reports. Submit one tool for analysis using the same published rubric.",
   icons: {
     icon: "/brand/alhena-mark.svg",
     shortcut: "/brand/alhena-mark.svg",
@@ -59,7 +59,7 @@ export default function RootLayout({
               <Link href="/">Reports</Link>
               <Link href="/methodology">The rubric</Link>
               <Link className="nav-cta" href="/request">
-                New comparison <ArrowUpRight size={16} />
+                Analyze your tool <ArrowUpRight size={16} />
               </Link>
             </nav>
           </div>

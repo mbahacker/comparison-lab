@@ -5,6 +5,7 @@ import { db } from './db.ts';
 import { hash, iso } from './security.ts';
 import { ApiError, type Provider, type Row } from './model.ts';
 import { deriveCheckedScore } from '../../worker/scoring.mjs';
+import { evaluationCounts } from '../../worker/protocol.mjs';
 import { authorizedReuse, auditClassification, reuseLimitations, reuseSources, evidenceHash, reusableAt } from '../../worker/reuse.mjs';
 
 export const SOURCE_COMMIT = '19b1420d2520d48baa52be81ac33fc4b9bd0ff8b';
@@ -58,6 +59,8 @@ function validateAuthorProof(turn: Row, conversation: Row) {
 
 /** Publication checks are stricter than the renderer. The renderer never creates a score. */
 export function validateEvidence(evidence: any, providers: Provider[], snapshot: Row, privateValues: string[] = [], authorizedReusedConversations: Row[] = [], now = Date.now()) {
+  let expected: ReturnType<typeof evaluationCounts>;
+  try { expected = evaluationCounts(providers); } catch { fail('one or two approved providers with three storefronts each are required.'); }
   object(evidence, 'the result must be an object.');
   if (evidence.schema_version !== 'comparison-lab-evidence/v1') fail('unsupported schema version.');
   object(evidence.study, 'study metadata is required.');
@@ -72,7 +75,7 @@ export function validateEvidence(evidence: any, providers: Provider[], snapshot:
     const matches = evidence.rubric.criteria.filter((c: Row) => c.id === expected.id && c.mode === expected.mode);
     if (matches.length !== 1 || matches[0].points !== expected.points || matches[0].dimension !== expected.dimension || matches[0].signal_gate !== expected.signal_gate || matches[0].passes_when !== expected.passes_when) fail(`rubric changed for ${expected.id}.`);
   }
-  if (!Array.isArray(evidence.live_conversations) || evidence.live_conversations.length !== 12) fail('exactly 12 complete conversations are required.');
+  if (!Array.isArray(evidence.live_conversations) || evidence.live_conversations.length !== expected.conversations) fail(`exactly ${expected.conversations} complete conversations are required.`);
   if (evidence.validation?.passed !== true || evidence.audit?.trusted !== true) fail('a successful separate audit is required.');
   for (const limitation of reuseLimitations(authorizedReusedConversations)) if (!evidence.study.limitations.includes(limitation)) fail('inherited source limitations must remain visible.');
   if (authorizedReusedConversations.length && (!Array.isArray(evidence.provenance?.reused_sources) || evidenceHash(evidence.provenance.reused_sources) !== evidenceHash(reuseSources(authorizedReusedConversations)))) fail('published-source reuse provenance must match the approved plan.');
@@ -86,6 +89,7 @@ export function validateEvidence(evidence: any, providers: Provider[], snapshot:
     try { reused = authorizedReuse(conversation, authorizedReusedConversations); } catch { fail('cached conversation differs from the approved immutable published source.'); }
     if (reused && !reusableAt(conversation.captured_at, now)) fail('cached capture is older than 30 days or has a future timestamp.');
     const historical = reused?.historicalAuthorVerification === true;
+    if (typeof conversation.captured_at !== 'string' || !Number.isFinite(Date.parse(conversation.captured_at)) || Date.parse(conversation.captured_at) > now) fail('capture timestamps must be valid and cannot be in the future.');
     const provider = providers.find(p => p.name === conversation.vendor);
     const customer = provider?.customers.find(c => c.name === conversation.store && sameWebsite(c.website, conversation.url));
     if (!provider || !customer) fail('a conversation does not match an approved deployment.');
@@ -145,14 +149,14 @@ export function validateEvidence(evidence: any, providers: Provider[], snapshot:
     if (recalculated.total !== score) fail('the independent deterministic scorer disagrees.');
     for (const [dimension, expected] of Object.entries(dimensionScores)) if (conversation.dimension_scores?.[dimension] !== expected) fail('dimension score arithmetic disagrees.');
   }
-  if (coverage.size !== 12 || turnCount !== 120 || checkCount !== 156) fail('complete coverage is required.');
+  if (coverage.size !== expected.conversations || turnCount !== expected.turns || checkCount !== expected.checks) fail('complete coverage is required.');
   if (authorizedReusedConversations.some(c => !ids.has(c.id))) fail('an approved reused conversation is missing.');
   const agreement = Math.round(auditAgreed / checkCount * 1000) / 10;
   if (agreement < snapshot.minimumAuditAgreement || evidence.audit.agreement_pct !== agreement || evidence.audit.verdicts !== checkCount || evidence.audit.agreed !== auditAgreed || evidence.audit.corrected !== checkCount - auditAgreed) fail('audit agreement or decision totals do not reconcile, or agreement is below the publication threshold.');
   const serialized = JSON.stringify(evidence);
   for (const privateValue of privateValues.filter(v => v.length >= 8)) if (serialized.toLowerCase().includes(privateValue.toLowerCase())) fail('private request information was found in public evidence.');
   if (/comparison_lab_session|[?&](?:review_token|otp_code|access_token|api_key)=|\/api\/review\//i.test(serialized)) fail('private credentials or review links must not appear in evidence.');
-  return { conversations: 12, turns: turnCount, checks: checkCount, criteria: 26, stores: 6 };
+  return { conversations: expected.conversations, turns: turnCount, checks: checkCount, criteria: 26, stores: expected.stores };
 }
 
 export function reportSummary(slug: string, evidence: Row, publishedAt = iso(), hasHtml = false) {
@@ -164,19 +168,21 @@ export function reportSummary(slug: string, evidence: Row, publishedAt = iso(), 
     row[c.mode] = c.score; scores.set(key, row);
   }
   const vendors = [...new Set(conversations.map(c => c.vendor))];
+  const providerWebsites = vendors.map(vendor => evidence.study?.providers?.find((p: Row) => p.name === vendor)?.website || (slug === SEED_SLUG ? ({ Alhena: 'https://alhena.ai/', Gorgias: 'https://www.gorgias.com/' } as Record<string, string>)[vendor] : undefined)).filter(Boolean);
+  const captureDates = conversations.map(c => c.captured_at).filter((value: unknown) => typeof value === 'string' && Number.isFinite(Date.parse(value as string))).map((value: string) => new Date(value).toISOString()).sort();
   const means = vendors.map(vendor => {
     const rows = [...scores.values()].filter(s => s.vendor === vendor);
     return { vendor, shopping: Math.round(rows.reduce((sum, row) => sum + row.shopping, 0) / rows.length * 10) / 10, support: Math.round(rows.reduce((sum, row) => sum + row.support, 0) / rows.length * 10) / 10 };
   });
   return {
-    slug, title: evidence.study?.title || 'Commerce AI comparison', publishedAt,
-    providers: vendors, vendors, scores: means,
+    slug, title: evidence.study?.title || 'Commerce AI evaluation', publishedAt, kind: vendors.length === 1 ? 'tool' : 'comparison',
+    providers: vendors, vendors, providerWebsites, scores: means, captureStartAt: captureDates[0], captureEndAt: captureDates.at(-1),
     storeCount: scores.size, conversationCount: conversations.length,
     turnCount: conversations.reduce((n, c) => n + (c.turns?.length || 0), 0), criterionCount: evidence.rubric?.criteria?.length || 26,
     protocol: PROTOCOL_ID,
     counts: { stores: scores.size, conversations: conversations.length, turns: conversations.reduce((n, c) => n + (c.turns?.length || 0), 0), criteria: evidence.rubric?.criteria?.length || 26 },
-    summary: 'A fixed-rubric evaluation of six live storefront deployments, with complete conversations and a separate AI judge and audit.',
-    description: 'Shopping and support quality across six live storefronts, with full conversations, fixed criteria, and a separate AI judge and audit.',
+    summary: `A fixed-rubric evaluation of ${scores.size} live storefront deployments, with complete conversations and a separate AI judge and audit.`,
+    description: `Shopping and support quality across ${scores.size} live storefronts, with full conversations, fixed criteria, and a separate AI judge and audit.`,
     limitations: evidence.study?.limitations || [],
     qualityOnly: true, commissionedBy: evidence.study?.commissioned_by || 'Alhena Research Lab', hasHtml,
   };

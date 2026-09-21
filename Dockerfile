@@ -19,7 +19,7 @@ COPY --from=build --chown=lab:lab /app/public ./public
 COPY --from=build --chown=lab:lab /app/content ./content
 COPY --from=build --chown=lab:lab /app/rubric ./rubric
 COPY --from=build --chown=lab:lab /app/lib/server ./lib/server
-COPY --from=build --chown=lab:lab /app/worker/protocol.mjs /app/worker/scoring.mjs /app/worker/reuse.mjs /app/worker/authorship.mjs ./worker/
+COPY --from=build --chown=lab:lab /app/worker/protocol.mjs /app/worker/scoring.mjs /app/worker/reuse.mjs /app/worker/authorship.mjs /app/worker/evidence.mjs ./worker/
 USER lab
 EXPOSE 3100
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"

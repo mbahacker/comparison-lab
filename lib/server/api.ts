@@ -7,7 +7,8 @@ import { ApiError, type ComparisonRequest, type Row, type User } from './model.t
 import { hash, iso, multilineText, otp, otpDigest, providersInput, rateLimit, requireOrigin, requireReportOrigin, requireUser, requireWorker, safeEqual, sessionCookie, sessionUser, text, token, workEmail, workEmailEligible, SESSION_COOKIE } from './security.ts';
 import { enqueueMail, flushOutbox } from './mail.ts';
 import { getReport, listReports, protocol, reportSummary, SEED_SLUG, validateEvidence } from './evidence.ts';
-import { getProviderCatalog, planReuse, resolveReuse } from './reuse.ts';
+import { getProviderCatalog, getToolLibrary, getTool, toolId, buildToolComparisons, planReuse, resolveReuse } from './reuse.ts';
+import { persistReport } from './publication.ts';
 
 const privateHeaders = { 'cache-control': 'private, no-store', vary: 'Cookie' };
 const json = (body: unknown, status = 200, headers: HeadersInit = {}) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...privateHeaders, 'x-content-type-options': 'nosniff', ...headers } });
@@ -33,7 +34,8 @@ async function body(request: Request, maxBytes = 32_000): Promise<Row> {
 }
 
 function requestView(row: Row): ComparisonRequest {
-  return { id: row.id, status: row.status, providers: JSON.parse(row.providers_json), createdAt: row.created_at, updatedAt: row.updated_at, reviewedAt: row.reviewed_at, reviewNote: row.review_note, reportSlug: row.report_slug, error: row.error, notes: row.notes || null };
+  const providers = JSON.parse(row.providers_json);
+  return { id: row.id, status: row.status, providers, kind: providers.length === 1 ? 'tool' : 'comparison', toolId: row.tool_id || null, comparisons: row.comparisons_json ? JSON.parse(row.comparisons_json) : [], createdAt: row.created_at, updatedAt: row.updated_at, reviewedAt: row.reviewed_at, reviewNote: row.review_note, reportSlug: row.report_slug, error: row.error, notes: row.notes || null };
 }
 function requestRow(id: string) {
   const row = db().prepare('SELECT * FROM requests WHERE id = ?').get(id) as Row | undefined;
@@ -52,13 +54,24 @@ function slugPart(value: string) { return value.toLowerCase().normalize('NFKD').
 
 function reuseView(plan: Row) {
   return { reusedConversations: plan.reusedConversations, newConversations: plan.newConversations, reusedStores: plan.reusedStores, newStores: plan.newStores, sources: plan.sources,
-    ...(plan.exactReport ? { existingReport: plan.exactReport } : {}), ...(plan.previousReport ? { previousReport: plan.previousReport } : {}), maximumAgeDays: 30 };
+    ...(plan.existingTool ? { existingTool: plan.existingTool } : {}), ...(plan.exactReport ? { existingReport: plan.exactReport } : {}), ...(plan.previousReport ? { previousReport: plan.previousReport } : {}), maximumAgeDays: 30 };
 }
 function linkExistingReport(row: Row, report: Row, jobId?: string) {
   const now = iso(); const user = requester(row);
   db().prepare("UPDATE requests SET status='published',report_slug=?,updated_at=?,error=NULL WHERE id=?").run(report.slug, now, row.id);
   if (jobId) db().prepare("UPDATE jobs SET state='published',updated_at=?,lease_token_hash=NULL,lease_expires_at=NULL,error=NULL WHERE id=?").run(now, jobId);
   enqueueMail(`request:${row.id}:existing-report`, user.email, `Your comparison is already available: ${report.title}`, `Hi ${user.name},\n\nThis comparison already has compatible published analysis captured within the last 30 days. No duplicate evaluation was started.\n\nRead the report:\n${config().appUrl}/reports/${report.slug}\n\nOriginal capture dates and limitations are preserved in the evidence. Your verified work email gives you access to the detailed report.\n\nAlhena Research Lab`);
+}
+
+function toolComparisons(id: string): Row[] {
+  const slugs = new Set(getTool(id)?.comparisonSlugs || []);
+  return listReports().filter(report => slugs.has(report.slug));
+}
+function linkExistingTool(row: Row, tool: Row, jobId?: string) {
+  const now = iso(); const user = requester(row); const comparisons = toolComparisons(tool.id);
+  db().prepare("UPDATE requests SET status='published',report_slug=?,tool_id=?,comparisons_json=?,updated_at=?,error=NULL WHERE id=?").run(tool.reportSlug, tool.id, JSON.stringify(comparisons), now, row.id);
+  if (jobId) db().prepare("UPDATE jobs SET state='published',updated_at=?,lease_token_hash=NULL,lease_expires_at=NULL,error=NULL WHERE id=?").run(now, jobId);
+  enqueueMail(`request:${row.id}:existing-tool`, user.email, `Your tool analysis is already available: ${tool.name}`, `Hi ${user.name},\n\nThis tool already has a complete, compatible three-storefront analysis captured within the last 30 days. No duplicate evaluation was started.\n\nExplore the tool profile:\n${config().appUrl}/tools/${tool.id}\n\nSource report:\n${config().appUrl}/reports/${tool.reportSlug}${comparisons.length ? `\n\nPublished comparisons:\n${comparisons.map(report => `${report.title}: ${config().appUrl}/reports/${report.slug}`).join('\n')}` : ''}\n\nOriginal capture dates and limitations remain visible. Detailed evidence requires a verified work email.\n\nAlhena Research Lab`);
 }
 
 function activeLease(input: Row) {
@@ -106,24 +119,26 @@ async function verifyAuth(request: Request) {
   return json({ user: userView(result.user as User) }, 200, { 'set-cookie': sessionCookie(rawSession) });
 }
 
-async function submitRequest(request: Request) {
+async function submitRequest(request: Request, singleTool = false) {
   const user = requireUser(request);
   workEmail(user.email);
   text(user.name, 'Name', 2, 120);
   const input = await body(request);
-  const providers = providersInput(input.providers ?? input.vendors);
+  const providers = singleTool ? providersInput([input.provider], 1) : providersInput(input.providers ?? input.vendors);
   if (input.consent !== true) throw new ApiError(400, 'Confirm that the submitted websites are public and that published results will include the submitted company and customer names.');
   const notes = input.notes ? multilineText(input.notes, 'Notes') : null;
   const reuse: Row = planReuse(providers, protocol());
-  if (reuse.exactReport) return json({ existingReport: reuse.exactReport, reuse: reuseView(reuse) });
+  if (singleTool && reuse.existingTool) return json({ existingTool: reuse.existingTool, reuse: reuseView(reuse) });
+  if (!singleTool && reuse.exactReport) return json({ existingReport: reuse.exactReport, reuse: reuseView(reuse) });
   const reviewToken = token(); const id = randomUUID(); const now = iso();
   transaction(() => {
     rateLimit(`requests:${user.id}`, 5, 86_400_000);
     db().prepare('INSERT INTO requests (id,user_id,providers_json,status,created_at,updated_at,review_token_hash,review_expires_at,notes,consent_at) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id, user.id, JSON.stringify(providers), 'pending_review', now, now, hash(reviewToken), Date.now() + 604_800_000, notes, now);
     const title = providers.map(p => p.name).join(' vs. ');
+    const label = singleTool ? 'tool evaluation' : 'comparison';
     const deployments = providers.map(p => `${p.name} (${p.website})\n${p.customers.map(c => `  ${c.name}: ${c.website}`).join('\n')}`).join('\n\n');
-    enqueueMail(`request:${id}:review`, config().adminEmail, `Review requested: ${title}`, `A verified mailbox submitted a comparison.\n\nRequester: ${user.name} <${user.email}>\n\n${deployments}${notes ? `\n\nRequester notes: ${notes}` : ''}\n\nCurrent reuse plan: ${reuse.reusedConversations} existing conversations; ${reuse.newConversations} new conversations (${reuse.newConversations * 10} new turns). Reuse is limited to compatible captures within 30 days; availability is checked again before execution. Original dates and limitations remain visible.\n\nReview and confirm the provider attribution of all six storefronts before approving:\n${config().appUrl}/review/${reviewToken}\n\nOpening this link cannot approve or start a run. The review link expires in seven days. Approval authorizes at most 120 new turns and automatic publication only after validation.\n\nAlhena Research Lab`);
-    enqueueMail(`request:${id}:received`, user.email, `Comparison submitted: ${title}`, `Hi ${user.name},\n\nYour comparison request is awaiting review. We will verify the proposed deployments before running it.\n\nView your private request status:\n${statusUrl(id)}\n\nWe will email you when it is approved and when the completed report is published.`);
+    enqueueMail(`request:${id}:review`, config().adminEmail, `Review requested: ${title}`, `A verified mailbox submitted a ${label}.\n\nRequester: ${user.name} <${user.email}>\n\n${deployments}${notes ? `\n\nRequester notes: ${notes}` : ''}\n\nCurrent reuse plan: ${reuse.reusedConversations} existing conversations; ${reuse.newConversations} new conversations (${reuse.newConversations * 10} new turns). Reuse is limited to compatible captures within 30 days; availability is checked again before execution. Original dates and limitations remain visible.\n\nReview and confirm the provider attribution of all ${providers.length * 3} storefronts before approving:\n${config().appUrl}/review/${reviewToken}\n\nOpening this link cannot approve or start a run. The review link expires in seven days. Approval authorizes at most ${providers.length * 60} new turns and automatic publication only after validation.\n\nAlhena Research Lab`);
+    enqueueMail(`request:${id}:received`, user.email, `${singleTool ? 'Tool evaluation' : 'Comparison'} submitted: ${title}`, `Hi ${user.name},\n\nYour ${label} request is awaiting review. We will verify the proposed deployments before running it.\n\nView your private request status:\n${statusUrl(id)}\n\nWe will email you when it is approved and when the completed report is published.`);
   });
   return json({ request: requestView(requestRow(id)) }, 201);
 }
@@ -161,7 +176,7 @@ async function reviewRequest(request: Request, rawToken: string) {
   }
   const input = await body(request);
   if (!['approve', 'reject'].includes(input.decision)) throw new ApiError(400, 'Choose approve or reject.');
-  if (input.decision === 'approve' && input.confirmAttribution !== true) throw new ApiError(400, 'Confirm you reviewed the provider attribution for all six customer storefronts.');
+  if (input.decision === 'approve' && input.confirmAttribution !== true) throw new ApiError(400, 'Confirm you reviewed the provider attribution for every submitted customer storefront.');
   const note = input.note ? multilineText(input.note, 'Review note') : null;
   const approvedProtocol = input.decision === 'approve' ? protocol() : null;
   const id = transaction(() => {
@@ -174,11 +189,12 @@ async function reviewRequest(request: Request, rawToken: string) {
     db().prepare('UPDATE requests SET status=?,review_decision=?,reviewed_at=?,updated_at=?,review_note=?,attribution_confirmed_at=? WHERE id=?').run(input.decision === 'approve' ? 'queued' : 'rejected', input.decision, now, now, note, input.decision === 'approve' ? now : null, row.id);
     if (input.decision === 'approve') {
       const reuse: Row = planReuse(JSON.parse(row.providers_json), approvedProtocol!);
+      if (JSON.parse(row.providers_json).length === 1 && reuse.existingTool) { linkExistingTool(row, reuse.existingTool); return row.id; }
       if (reuse.exactReport) { linkExistingReport(row, reuse.exactReport); return row.id; }
       db().prepare('INSERT INTO jobs (id,request_id,state,protocol_json,reuse_json,available_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').run(randomUUID(), row.id, 'queued', JSON.stringify(approvedProtocol), JSON.stringify(reuse), Date.now(), now, now);
-      enqueueMail(`request:${row.id}:approved`, user.email, `Comparison approved: ${requestTitle(row)}`, `Hi ${user.name},\n\nYour comparison has been approved. The current plan reuses ${reuse.reusedConversations} previously evaluated conversations and runs ${reuse.newConversations} new conversations. Only compatible analysis captured within 30 days is reused; its original dates and limitations remain visible. Unsupported storefronts or incomplete evidence will pause the run for review.\n\nPrivate status:\n${statusUrl(row.id)}\n\nWe will send the report link when capture, judging, audit and validation are complete.\n\nAlhena Research Lab`);
+      enqueueMail(`request:${row.id}:approved`, user.email, `${JSON.parse(row.providers_json).length === 1 ? 'Tool evaluation' : 'Comparison'} approved: ${requestTitle(row)}`, `Hi ${user.name},\n\nYour evaluation has been approved. The current plan reuses ${reuse.reusedConversations} previously evaluated conversations and runs ${reuse.newConversations} new conversations. Only compatible analysis captured within 30 days is reused; its original dates and limitations remain visible. Unsupported storefronts or incomplete evidence will pause the run for review.\n\nPrivate status:\n${statusUrl(row.id)}\n\nWe will send the report link when capture, judging, audit and validation are complete.\n\nAlhena Research Lab`);
     } else {
-      enqueueMail(`request:${row.id}:rejected`, user.email, `Update on your comparison request`, `Hi ${user.name},\n\nYour request was reviewed and will not run.${note ? `\n\nReview note: ${note}` : ''}\n\nPrivate status:\n${statusUrl(row.id)}`);
+      enqueueMail(`request:${row.id}:rejected`, user.email, JSON.parse(row.providers_json).length === 1 ? 'Update on your tool analysis request' : 'Update on your comparison request', `Hi ${user.name},\n\nYour request was reviewed and will not run.${note ? `\n\nReview note: ${note}` : ''}\n\nPrivate status:\n${statusUrl(row.id)}`);
     }
     return row.id;
   });
@@ -202,6 +218,7 @@ async function claimJob() {
     // Refresh before each attempt: aged-out evidence becomes new work, while a
     // comparison published by an earlier queued job avoids a duplicate run.
     const reuse: Row = planReuse(approvedProviders, snapshot);
+    if (approvedProviders.length === 1 && reuse.existingTool) { linkExistingTool(selectedRequest, reuse.existingTool, selected.id); return null; }
     if (reuse.exactReport) { linkExistingReport(selectedRequest, reuse.exactReport, selected.id); return null; }
     const reusedConversations = resolveReuse(reuse, approvedProviders, snapshot);
     db().prepare('UPDATE jobs SET reuse_json=? WHERE id=?').run(JSON.stringify(reuse), selected.id);
@@ -210,7 +227,7 @@ async function claimJob() {
     db().prepare("UPDATE jobs SET state='running',attempt=attempt+1,fencing_token=?,lease_token_hash=?,lease_expires_at=?,heartbeat_at=?,updated_at=?,error=NULL WHERE id=?").run(fencingToken, hash(leaseToken), expires, now, iso(), selected.id);
     db().prepare("UPDATE requests SET status='running',updated_at=?,error=NULL WHERE id=?").run(iso(), selected.request_id);
     const request = requestRow(selected.request_id);
-    return { id: selected.id, requestId: selected.request_id, leaseToken, fencingToken, leaseExpiresAt: new Date(expires).toISOString(), attempt: selected.attempt + 1, providers: JSON.parse(request.providers_json), protocol: snapshot, reusedConversations, approvedAt: request.reviewed_at, attributionConfirmedAt: request.attribution_confirmed_at };
+    return { id: selected.id, requestId: selected.request_id, leaseToken, fencingToken, leaseExpiresAt: new Date(expires).toISOString(), attempt: selected.attempt + 1, providers: JSON.parse(request.providers_json), protocol: snapshot, reusedConversations, limits: { conversations: approvedProviders.length * 6, turns: approvedProviders.length * 60, decisions: approvedProviders.length * 78 }, approvedAt: request.reviewed_at, attributionConfirmedAt: request.attribution_confirmed_at };
   });
   return json({ job });
 }
@@ -227,30 +244,46 @@ async function heartbeatJob(request: Request) {
 
 async function completeJob(request: Request) {
   const input = await body(request, 12_000_000);
+  const previous = db().prepare('SELECT * FROM jobs WHERE id=?').get(typeof input.jobId === 'string' ? input.jobId : '') as Row | undefined;
+  // A lost HTTP response must not trigger another publication or another email.
+  // Only a previously successful single-tool completion can use this receipt.
+  if (previous?.state === 'published' && previous.completion_json && typeof input.leaseToken === 'string' && previous.fencing_token === input.fencingToken && safeEqual(previous.completion_token_hash || '', hash(input.leaseToken)) && safeEqual(previous.completion_evidence_hash || '', hash(JSON.stringify(input.evidence) || ''))) {
+    return json(JSON.parse(previous.completion_json));
+  }
   const job = activeLease(input); const row = requestRow(job.request_id); const user = requester(row);
-  const authorizedReuse = resolveReuse(job.reuse_json ? JSON.parse(job.reuse_json) : null, JSON.parse(row.providers_json), JSON.parse(job.protocol_json));
-  const counts = validateEvidence(input.evidence, JSON.parse(row.providers_json), JSON.parse(job.protocol_json), [user.email, user.name, config().adminEmail, input.leaseToken, config().workerSecret], authorizedReuse);
-  const completedAt = iso();
-  const evidence = { ...input.evidence, publication: { published_at: completedAt, validated_by: 'comparison-lab-server', protocol_snapshot_sha256: JSON.parse(job.protocol_json).sha256, counts, automatic_publication: true } };
-  const providers = JSON.parse(row.providers_json);
+  const providers = JSON.parse(row.providers_json); const snapshot = JSON.parse(job.protocol_json);
+  const authorizedReuse = resolveReuse(job.reuse_json ? JSON.parse(job.reuse_json) : null, providers, snapshot);
+  const counts = validateEvidence(input.evidence, providers, snapshot, [user.email, user.name, config().adminEmail, input.leaseToken, config().workerSecret], authorizedReuse);
+  const singleTool = providers.length === 1; const completedAt = iso();
+  const evidence = { ...input.evidence, publication: { published_at: completedAt, validated_by: 'comparison-lab-server', protocol_snapshot_sha256: snapshot.sha256, counts, automatic_publication: true,
+    ...(singleTool ? { auto_reports: { enabled: true, maximum_original_capture_age_days: 30, fresh_model_calls: 0, method: 'Comparisons assembled and validated atomically from compatible immutable tool cohorts.' } } : {}) } };
   const slug = `${providers.map((p: Row) => slugPart(p.name)).join('-vs-')}-${row.id.slice(0, 8)}`;
-  const bytes = JSON.stringify(evidence, null, 2);
-  const directory = path.join(config().dataDir, 'reports');
-  fs.mkdirSync(directory, { recursive: true, mode: 0o700 });
-  const filename = `${slug}-${hash(bytes).slice(0, 12)}.json`;
-  const temp = path.join(directory, `${randomUUID()}.tmp`);
-  fs.writeFileSync(temp, bytes, { mode: 0o600 });
-  fs.renameSync(temp, path.join(directory, filename));
-  const summary = reportSummary(slug, evidence, completedAt);
-  transaction(() => {
+  const summary: Row = reportSummary(slug, evidence, completedAt);
+  const result = transaction(() => {
     activeLease(input);
-    db().prepare('INSERT INTO reports (slug,job_id,title,summary_json,evidence_path,evidence_sha256,published_at) VALUES (?,?,?,?,?,?,?)').run(slug, job.id, summary.title, JSON.stringify(summary), filename, hash(bytes), completedAt);
-    db().prepare("UPDATE jobs SET state='published',updated_at=?,lease_token_hash=NULL,lease_expires_at=NULL WHERE id=?").run(completedAt, job.id);
-    db().prepare("UPDATE requests SET status='published',report_slug=?,updated_at=?,error=NULL WHERE id=?").run(slug, completedAt, row.id);
-    enqueueMail(`request:${row.id}:published`, user.email, `Your comparison report is published: ${requestTitle(row)}`, `Hi ${user.name},\n\nThe comparison is complete and published, including all conversations, criterion decisions and audit evidence.\n\nExplore the report:\n${config().appUrl}/reports/${slug}\n\nThe report covers the selected storefront deployments under the published quality rubric. Read its scope and limitations before interpreting the scores.`);
-    enqueueMail(`request:${row.id}:published-admin`, config().adminEmail, `Published: ${requestTitle(row)}`, `The approved comparison passed evidence validation and was published automatically.\n\n${config().appUrl}/reports/${slug}\n\n12 conversations, 120 turns, 156 criterion decisions. The requester has been queued for notification.`);
+    persistReport(slug, evidence, summary, job.id);
+    const id = singleTool ? toolId(providers[0].website) : null;
+    const generated = singleTool ? buildToolComparisons(slug, snapshot) : [];
+    for (const comparison of generated) persistReport(comparison.slug, comparison.evidence, comparison.summary, null, comparison.key);
+    const comparisons = id ? toolComparisons(id) : [];
+    if (singleTool) {
+      summary.toolId = id;
+      summary.auto_reports = generated.map(report => ({ slug: report.slug, title: report.summary.title }));
+      db().prepare('UPDATE reports SET summary_json=? WHERE slug=?').run(JSON.stringify(summary), slug);
+    }
+    const response = { ok: true, report: summary, ...(singleTool ? { toolId: id, comparisons } : {}) };
+    db().prepare("UPDATE jobs SET state='published',updated_at=?,lease_token_hash=NULL,lease_expires_at=NULL,error=NULL,completion_token_hash=?,completion_evidence_hash=?,completion_json=? WHERE id=?").run(completedAt, singleTool ? hash(input.leaseToken) : null, singleTool ? hash(JSON.stringify(input.evidence)) : null, singleTool ? JSON.stringify(response) : null, job.id);
+    db().prepare("UPDATE requests SET status='published',report_slug=?,tool_id=?,comparisons_json=?,updated_at=?,error=NULL WHERE id=?").run(slug, id, singleTool ? JSON.stringify(comparisons) : null, completedAt, row.id);
+    if (singleTool) {
+      const links = comparisons.map(report => `${report.title}: ${config().appUrl}/reports/${report.slug}`).join('\n');
+      enqueueMail(`request:${row.id}:published`, user.email, `Your tool analysis is published: ${requestTitle(row)}`, `Hi ${user.name},\n\nYour tool analysis is complete and published: ${counts.conversations} conversations, ${counts.turns} turns and ${counts.checks} criterion decisions across three storefronts.\n\nExplore the tool profile:\n${config().appUrl}/tools/${id}\n\nSource report and detailed evidence:\n${config().appUrl}/reports/${slug}\n\n${comparisons.length ? `Published comparisons:\n${links}\n\n${generated.length ? `${generated.length} new comparison${generated.length === 1 ? '' : 's'} were assembled from compatible published captures within their original 30-day window, without new storefront conversations or model judgments.` : 'No new comparison was generated in this publication. Existing comparisons retain their original capture dates and limitations.'}` : 'There are currently no compatible fresh tool cohorts to compare against. Your standalone tool analysis is published.'}\n\nRead the capture dates, scope and inherited limitations before interpreting the scores. Detailed evidence requires a verified work email.\n\nAlhena Research Lab`);
+    } else {
+      enqueueMail(`request:${row.id}:published`, user.email, `Your comparison report is published: ${requestTitle(row)}`, `Hi ${user.name},\n\nThe comparison is complete and published, including all conversations, criterion decisions and audit evidence.\n\nExplore the report:\n${config().appUrl}/reports/${slug}\n\nThe report covers the selected storefront deployments under the published quality rubric. Read its scope and limitations before interpreting the scores.`);
+    }
+    enqueueMail(`request:${row.id}:published-admin`, config().adminEmail, `Published: ${requestTitle(row)}`, `The approved ${singleTool ? 'tool analysis' : 'comparison'} passed evidence validation and was published automatically.\n\n${config().appUrl}/reports/${slug}\n\n${counts.conversations} conversations, ${counts.turns} turns, ${counts.checks} criterion decisions.${singleTool ? ` ${generated.length} new comparisons assembled and validated without new capture or model calls. Tool profile: ${config().appUrl}/tools/${id}` : ''} The requester has been queued for notification.`);
+    return response;
   });
-  return json({ ok: true, report: summary });
+  return json(result);
 }
 
 async function failJob(request: Request) {
@@ -266,7 +299,7 @@ async function failJob(request: Request) {
     if (!retry) {
       const row = requestRow(job.request_id); const user = requester(row);
       enqueueMail(`job:${job.id}:needs-review:${job.attempt}`, config().adminEmail, `Comparison needs attention: ${requestTitle(row)}`, `The approved run stopped without publishing.\n\nRequest: ${row.id}\nFailure code: ${code}\nWorker diagnostic: ${message}\n\nInspect the deployment adapters or evidence and use the administrator CLI to retry when appropriate.`);
-      enqueueMail(`request:${row.id}:paused:${job.attempt}`, user.email, 'Your comparison needs additional review', `Hi ${user.name},\n\nYour comparison could not be completed automatically and needs operator review. Incomplete results have not been published.\n\nPrivate status:\n${statusUrl(row.id)}`);
+      enqueueMail(`request:${row.id}:paused:${job.attempt}`, user.email, JSON.parse(row.providers_json).length === 1 ? 'Your tool evaluation needs additional review' : 'Your comparison needs additional review', `Hi ${user.name},\n\nYour evaluation could not be completed automatically and needs operator review. Incomplete results have not been published.\n\nPrivate status:\n${statusUrl(row.id)}`);
     }
     return state;
   });
@@ -288,6 +321,19 @@ export async function handleApi(request: Request, segments?: string[]): Promise<
     }
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) requireOrigin(request);
     if (route === 'health' && method === 'GET') return json({ ok: true, ...readiness() });
+    if (route === 'tools' && method === 'GET') return json(getToolLibrary());
+    if (parts[0] === 'tools' && parts.length === 2 && method === 'GET') {
+      const tool = getTool(parts[1]);
+      if (!tool) throw new ApiError(404, 'Tool not found.');
+      return json({ tool });
+    }
+    if (route === 'tools/reuse/preview' && method === 'POST') {
+      const user = requireUser(request); workEmail(user.email);
+      const input = await body(request);
+      transaction(() => rateLimit(`reuse-preview:${user.id}`, 30, 60_000));
+      return json(reuseView(planReuse(providersInput([input.provider], 1), protocol())));
+    }
+    if (route === 'tools/requests' && method === 'POST') return await submitRequest(request, true);
     if (route === 'providers' && method === 'GET') {
       const query = new URL(request.url).searchParams.get('q') || '';
       if (query.length > 180) throw new ApiError(400, 'Provider search is too long.');
@@ -314,7 +360,11 @@ export async function handleApi(request: Request, segments?: string[]): Promise<
     if (route === 'requests' && method === 'POST') return await submitRequest(request);
     if (parts[0] === 'requests' && parts.length === 2 && method === 'GET') return json({ request: requestView(ownerRequest(parts[1], requireUser(request).id)) });
     if (parts[0] === 'review' && parts.length === 2 && ['GET', 'POST'].includes(method)) return await reviewRequest(request, parts[1]);
-    if (route === 'reports' && method === 'GET') return json({ reports: listReports() });
+    if (route === 'reports' && method === 'GET') {
+      const kind = new URL(request.url).searchParams.get('kind');
+      if (kind && !['tool', 'comparison', 'all'].includes(kind)) throw new ApiError(400, 'Choose tool, comparison or all reports.');
+      return json({ reports: listReports().filter(report => !kind || kind === 'all' || (report.kind || (report.providers?.length === 1 ? 'tool' : 'comparison')) === kind) });
+    }
     if (parts[0] === 'reports' && parts.length >= 2 && method === 'GET') {
       if (parts.length === 2) {
         const user = sessionUser(request);
