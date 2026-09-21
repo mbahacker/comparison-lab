@@ -23,7 +23,7 @@ const successful = result => async () => ({ ok: true, status: 200, json: async (
 test('a running worker requires an explicit known provider, its own API key, and both model IDs', () => {
   const common = { JUDGE_MODEL: 'configured-judge', AUDITOR_MODEL: 'configured-auditor' };
   assert.throws(() => validateModelStartup({ ...common, OPENAI_API_KEY: 'test-only' }), /MODEL_PROVIDER/);
-  assert.throws(() => validateModelStartup({ ...common, MODEL_PROVIDER: 'claude-cli', ANTHROPIC_API_KEY: 'test-only' }), /MODEL_PROVIDER/);
+  assert.throws(() => validateModelStartup({ ...common, MODEL_PROVIDER: 'unsupported-provider', ANTHROPIC_API_KEY: 'test-only' }), /MODEL_PROVIDER/);
   assert.throws(() => validateModelStartup({ ...common, MODEL_PROVIDER: 'anthropic', OPENAI_API_KEY: 'test-only' }), /ANTHROPIC_API_KEY/);
   assert.throws(() => validateModelStartup({ ...common, MODEL_PROVIDER: 'openai', ANTHROPIC_API_KEY: 'test-only' }), /OPENAI_API_KEY/);
   assert.throws(() => validateModelStartup({ MODEL_PROVIDER: 'anthropic', ANTHROPIC_API_KEY: 'test-only', JUDGE_MODEL: 'configured-judge' }), /AUDITOR_MODEL/);

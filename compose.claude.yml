@@ -1,0 +1,47 @@
+# Add LAST, after compose.shared.yml, for the isolated Claude CLI judge.
+# Existing 4 GiB evaluator allocation is split: browser 3 GiB + judge 1 GiB.
+services:
+  worker:
+    cpus: "${LAB_CLAUDE_WORKER_CPUS:-0.75}"
+    environment:
+      MODEL_PROVIDER: claude-cli
+      OPENAI_API_KEY: ""
+      ANTHROPIC_API_KEY: ""
+      JUDGE_SERVICE_URL: http://judge:3101/judge
+      JUDGE_SERVICE_SECRET: ${JUDGE_SERVICE_SECRET:-}
+    mem_limit: "${LAB_CLAUDE_WORKER_MEMORY:-3g}"
+    memswap_limit: "${LAB_CLAUDE_WORKER_MEMORY:-3g}"
+    networks: [default, judge-private]
+    depends_on:
+      judge:
+        condition: service_healthy
+  judge:
+    profiles: [worker]
+    build:
+      context: .
+      dockerfile: judge/Dockerfile
+    restart: unless-stopped
+    init: true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=128m,mode=1777
+    environment:
+      CLAUDE_TOKEN_FILE: /run/secrets/claude_oauth_token
+      JUDGE_SERVICE_SECRET: ${JUDGE_SERVICE_SECRET:-}
+      JUDGE_MODEL: ${JUDGE_MODEL:-}
+      AUDITOR_MODEL: ${AUDITOR_MODEL:-}
+    secrets: [claude_oauth_token]
+    networks: [judge-private, judge-egress]
+    cpus: "${LAB_JUDGE_CPUS:-0.25}"
+    mem_limit: "${LAB_JUDGE_MEMORY:-1g}"
+    memswap_limit: "${LAB_JUDGE_MEMORY:-1g}"
+    pids_limit: 128
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+networks:
+  judge-private:
+    internal: true
+  judge-egress:
+secrets:
+  claude_oauth_token:
+    file: ${CLAUDE_TOKEN_FILE:-./.secrets/claude_oauth_token}

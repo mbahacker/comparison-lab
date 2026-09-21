@@ -67,11 +67,34 @@ Generate a worker secret locally with `openssl rand -hex 32`; do not paste it in
 
 ## Evaluator provider
 
-Choose exactly one provider with `MODEL_PROVIDER=openai` or `MODEL_PROVIDER=anthropic`. OpenAI requires `OPENAI_API_KEY`; Anthropic requires `ANTHROPIC_API_KEY`. Set explicit `JUDGE_MODEL` and `AUDITOR_MODEL` IDs supported by that provider and account. No model ID is selected by the application. Leave the unused provider key unset. Startup fails if the selected provider, its key, either model ID or the worker API secret is missing. There is no automatic provider fallback.
+Choose exactly one provider with `MODEL_PROVIDER=openai`, `MODEL_PROVIDER=anthropic` or `MODEL_PROVIDER=claude-cli`. OpenAI requires `OPENAI_API_KEY`; direct Anthropic requires `ANTHROPIC_API_KEY`; Claude CLI uses the isolated service below. Set explicit `JUDGE_MODEL` and `AUDITOR_MODEL` IDs supported by that provider and account. No model ID is selected by the application. Leave unused provider keys unset. Startup fails if required provider credentials, either model ID or the worker API secret is missing. There is no automatic provider fallback.
 
-Anthropic uses the Messages API's [native structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs), with `output_config.format` and an API key. Claude subscription/CLI login and OAuth credentials are not supported. Both providers receive the same pinned rubric and masked conversation packet in separate judge and auditor calls. Provider, requested and returned model IDs, and response IDs are included in evaluation provenance. Incomplete output, refusal, malformed JSON or failed evidence validation stops publication; switching providers does not change criteria, weights or deterministic scoring.
+Direct Anthropic uses the Messages API's [native structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs), with `output_config.format` and an API key. All providers receive the same pinned rubric and masked conversation packet in separate judge and auditor calls. Provider, requested and returned model IDs, and response IDs are included in evaluation provenance. Incomplete output, refusal, malformed JSON or failed evidence validation stops publication; switching providers does not change criteria, weights or deterministic scoring.
 
 Optional `OPENAI_BASE_URL` and `ANTHROPIC_BASE_URL` overrides must be trusted HTTPS API endpoints. A selected API key is sent to the selected endpoint; do not accept endpoint overrides from comparison submitters. The browser subprocess receives a narrow environment allowlist and does not inherit either model API key.
+
+## Isolated Claude CLI judge
+
+The optional `compose.claude.yml` overlay uses an existing `CLAUDE_CODE_OAUTH_TOKEN` through the unmodified official Claude Code CLI pinned to `2.1.198`. [Claude documents setup-token authentication for CLI scripts](https://code.claude.com/docs/en/authentication#generate-a-long-lived-token). The application never sends raw OAuth API requests. Do not use `--bare`: that mode ignores subscription tokens. Calls instead use an empty temporary home/config/working directory, no setting sources, hooks disabled, no tools or MCP servers, skills disabled and `--no-session-persistence`. The exact rubric is the system prompt; `--json-schema` supplies the fixed verdict schema. See [programmatic CLI output](https://code.claude.com/docs/en/headless) and [CLI flags](https://code.claude.com/docs/en/cli-reference).
+
+Provision only the existing token value into a protected token-only file on the host, default `.secrets/claude_oauth_token`. Do not mount Jarvis's home, `.env`, configuration or credential directories. `.secrets/` is excluded from Git and Docker build contexts. The file must be readable by the container's UID/GID 1001; for local Compose secrets, host file ownership and permissions apply. Keep it owner/group-readable only (for example root:1001, mode 0640) and restrict its parent directory. Set `CLAUDE_TOKEN_FILE` to its host path and a separate random `JUDGE_SERVICE_SECRET` of at least 32 characters. The transport secret authenticates the worker to the private service; it is not a model credential. Never copy the token into `.env`, CLI arguments or logs.
+
+Set `JUDGE_MODEL` and `AUDITOR_MODEL` explicitly; account access must be verified. No advisor model, settings, hooks or API credentials are inherited from Jarvis. The judge starts one CLI process at a time, rejects additional work with 429, limits request/output size and allows 180 seconds per call. Errors return sanitized codes. Every result must be successful, schema-valid and tied to its fresh session. Temporary session files are removed after each call. This mode shares subscription usage with Jarvis; timeout, refusal or unavailable models stop the evaluation without publication.
+
+On a shared host, add the CLI overlay **last**. It splits the existing evaluator allocation into worker 3 GiB / 0.75 CPU and judge 1 GiB / 0.25 CPU, keeping the full Lab ceilings at 5.75 GiB / 1.75 CPU. Both disable host swap. These limits need host verification; they are not proof of sufficient capacity.
+
+```sh
+docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml -f compose.claude.yml --profile worker config --quiet
+docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml -f compose.claude.yml --profile worker --parallel 1 build judge worker
+# Two minimal schema-only model calls under the judge's limits; starts no worker or report job.
+docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml -f compose.claude.yml --profile worker run --rm --no-deps judge node judge/smoke.mjs
+# After the smoke succeeds and during an approved launch:
+docker compose -f compose.yml -f compose.https.yml -f compose.shared.yml -f compose.claude.yml --profile worker up -d --no-build judge worker
+```
+
+The smoke verifies the pinned CLI, both selected models, distinct session IDs, structured results and cleanup, and reports cgroup memory peak when available. It does not prove a live storefront evaluation or sustained capacity. The judge has no published port, no application/worker data volume, and no network shared with the web service. Its private worker-facing network is internal; a separate network permits Claude API egress. Keep all four Compose files for later CLI-mode updates. The browser's public-only proxy blocks access to the judge's private address.
+
+On September 20, 2026, the operator's host smoke passed with CLI `2.1.198`, `claude-sonnet-5` and `claude-opus-4-8` in a non-root, read-only container with no capabilities and a 1 GiB / 0.25 CPU ceiling. Both calls returned schema-valid results in distinct sessions, with no temporary sessions left. Cgroup memory peak was 146,984,960 bytes (about 140 MiB). This was a minimal JSON/authentication test, not a full evaluation or combined load test.
 
 ## Start with an existing HTTPS reverse proxy
 
@@ -102,13 +125,13 @@ The profile explicitly allows `chroot`, which Chromium needs inside its sandbox 
 - Inspect all evidence, authorship metadata, judge and auditor decisions, publication, and report-ready email.
 - If a storefront lacks unambiguous AI message-author markers, the worker stops with `needs_adapter`. Configure and review its adapter rather than weakening evidence requirements.
 
-The test suite does not substitute for this live deployment check. No production emails or live storefront chats were executed while building this repository.
+The test suite does not substitute for this live deployment check. On the deployment host, a production OTP was sent through the dedicated SendGrid key, confirmed in the operator's inbox, and successfully exchanged for a verified session (HTTP 200). This verifies delivery and code consumption, not expiry, public HTTPS, approval notifications or report-ready delivery. No new live storefront comparison was run as part of this deployment verification.
 
 ## Email delivery
 
 The `mailer` service owns a durable retry loop. Approval, status and report emails are inserted transactionally into SQLite. Worker lease and publication endpoints do not wait for mail delivery. A provider failure leaves an outbox entry to retry; it does not invalidate published evidence.
 
-For SendGrid, authenticate the sender domain and create a restricted API key with Mail Send access. Set `MAIL_FROM` to a sender under that authenticated domain, for example `Comparison Lab <reports@alhena.ai>`. Add only the domain-authentication records provided by SendGrid, with Cloudflare proxying disabled on those records; do not replace existing MX records. See [SendGrid domain authentication](https://www.twilio.com/docs/sendgrid/ui/account-and-settings/how-to-set-up-domain-authentication). Verify actual receipt in an operator-controlled mailbox before launch; API acceptance alone is not delivery confirmation.
+For SendGrid, use an existing verified sender when available and create a dedicated restricted API key with Mail Send access. Set `MAIL_FROM` to that verified address with the application's display name. This deployment reuses an existing verified sender and leaves all other account keys, senders, domains and settings unchanged. If a different installation needs new sender authentication, follow [SendGrid domain authentication](https://www.twilio.com/docs/sendgrid/ui/account-and-settings/how-to-set-up-domain-authentication) within its operator-approved scope. Verify actual receipt in an operator-controlled mailbox before launch; API acceptance alone is not delivery confirmation.
 
 SendGrid receives the outbox ID as a correlation value, not an idempotency guarantee. If a request succeeds at the provider but its response is lost, a retry can produce a duplicate notification. Resend is retained as an alternative (`MAIL_TRANSPORT=resend`, `RESEND_API_KEY`) and receives a stable provider idempotency key. Neither mail retry path reruns an evaluation.
 

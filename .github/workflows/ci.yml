@@ -22,6 +22,7 @@ jobs:
           NEXT_TELEMETRY_DISABLED: '1'
       - run: docker build -t comparison-lab-web .
       - run: docker build -f worker/Dockerfile -t comparison-lab-worker .
+      - run: docker build -f judge/Dockerfile -t comparison-lab-judge .
       - name: Validate production Compose and HTTPS configuration
         env:
           APP_URL: https://evals.alhena.ai
@@ -48,3 +49,15 @@ jobs:
           docker compose --env-file /dev/null -f compose.yml -f compose.https.yml -f compose.shared.yml config --quiet
           services=$(docker compose --env-file /dev/null -f compose.yml -f compose.https.yml -f compose.shared.yml config --services)
           test "$(printf '%s\n' "$services" | sort)" = "$(printf '%s\n' caddy mailer web)"
+      - name: Validate isolated CLI judge configuration without subscription credentials
+        env:
+          APP_URL: https://evals.alhena.ai
+          MAIL_FROM: Comparison Lab <reports@alhena.ai>
+          WORKER_SECRET: ci-placeholder-worker-secret-at-least-32-characters
+          JUDGE_SERVICE_SECRET: ci-placeholder-judge-secret-at-least-32-characters
+          JUDGE_MODEL: ci-placeholder-model
+          AUDITOR_MODEL: ci-placeholder-model
+          CLAUDE_TOKEN_FILE: /dev/null
+        run: |
+          unset OPENAI_API_KEY ANTHROPIC_API_KEY CLAUDE_CODE_OAUTH_TOKEN
+          docker compose --env-file /dev/null -f compose.yml -f compose.https.yml -f compose.shared.yml -f compose.claude.yml --profile worker config --quiet

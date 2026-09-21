@@ -1,5 +1,6 @@
 import { WorkerError } from './protocol.mjs';
 import { trustedTransport } from './transport.mjs';
+import { claudeServiceConfiguration, claudeStructuredResponse } from './claude-client.mjs';
 
 const PROVIDERS = Object.freeze({
   openai: { keyVariable: 'OPENAI_API_KEY', baseVariable: 'OPENAI_BASE_URL', defaultBase: 'https://api.openai.com/v1/', route: 'responses' },
@@ -10,7 +11,8 @@ export function modelConfiguration({ env = process.env, provider = env.MODEL_PRO
   // Existing programmatic callers used OpenAI before providers were configurable. A deployed
   // worker must choose explicitly; neither path infers a provider from whichever key is present.
   const selected = provider || (requireExplicit ? undefined : 'openai');
-  if (!selected || !Object.hasOwn(PROVIDERS, selected)) throw new WorkerError('model_configuration', 'Set MODEL_PROVIDER to openai or anthropic');
+  if (selected === 'claude-cli') return claudeServiceConfiguration(env);
+  if (!selected || !Object.hasOwn(PROVIDERS, selected)) throw new WorkerError('model_configuration', 'Set MODEL_PROVIDER to openai, anthropic or claude-cli');
   const spec = PROVIDERS[selected];
   const key = env[spec.keyVariable]?.trim();
   if (!key) throw new WorkerError('model_configuration', `${spec.keyVariable} is required for MODEL_PROVIDER=${selected}`);
@@ -31,6 +33,7 @@ export function validateModelStartup(env = process.env) {
 export async function providerStructuredResponse({ instructions, input, schema, model, provider, signal, fetchImpl = fetch }) {
   const configuration = modelConfiguration({ provider: provider ?? process.env.MODEL_PROVIDER });
   if (typeof model !== 'string' || !model.trim()) throw new WorkerError('model_configuration', 'An explicit evaluator model ID is required');
+  if (configuration.provider === 'claude-cli') return claudeStructuredResponse({ instructions, input, schema, model, signal, fetchImpl });
   const isAnthropic = configuration.provider === 'anthropic';
   const headers = isAnthropic
     ? { 'x-api-key': configuration.key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' }

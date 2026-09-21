@@ -52,9 +52,11 @@ Run a separate local mail dispatcher when exercising approval and completion not
 node --env-file=.env.local --experimental-strip-types lib/server/mail-daemon.ts
 ```
 
-To run the browser worker, configure `worker/env.example`, install Chromium, then start it in a suitable sandboxed environment. Set `MODEL_PROVIDER` explicitly to `openai` or `anthropic`, provide the matching `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`, and choose supported `JUDGE_MODEL` and `AUDITOR_MODEL` IDs. The server's `WORKER_SECRET` must equal the worker's `WORKER_API_KEY`. A running worker rejects incomplete configuration; it never chooses a provider based on available credentials or falls back to another provider.
+To run the browser worker, configure `worker/env.example`, install Chromium, then start it in a suitable sandboxed environment. Set `MODEL_PROVIDER` explicitly to `openai`, `anthropic` or `claude-cli`, and choose supported `JUDGE_MODEL` and `AUDITOR_MODEL` IDs. Direct API providers need their matching key; `claude-cli` uses the isolated judge service described below. The server's `WORKER_SECRET` must equal the worker's `WORKER_API_KEY`. A running worker rejects incomplete configuration; it never chooses a provider based on available credentials or falls back to another provider.
 
-Both providers use structured JSON outputs with the same fixed rubric, separate judge/auditor calls and deterministic scoring. Published evidence records the provider, requested and returned model IDs, and response IDs. Anthropic support uses its [Messages API structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs), authenticated with an Anthropic API key. Claude subscription login, CLI credentials and OAuth tokens are not used.
+All providers use structured JSON outputs with the same fixed rubric, separate judge/auditor calls and deterministic scoring. Published evidence records the provider, requested and returned model IDs, and response IDs. Direct Anthropic support uses its [Messages API structured outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs), authenticated with an Anthropic API key.
+
+For an existing Claude setup-token, add `compose.claude.yml` last after the shared-host overlay. Only a separate judge container receives a token-only secret file. It invokes the unmodified Claude Code CLI pinned to `2.1.198`; no application code sends raw OAuth requests. Each call has a fresh temporary home/session, exact JSON schema, disabled tools/MCP/hooks/skills and no saved session. The browser worker receives only a private transport secret, never Claude credentials or the Jarvis home directory. See the [CLI deployment and smoke-test instructions](docs/deployment.md#isolated-claude-cli-judge). This mode shares the token's subscription limits with Jarvis.
 
 ## Deploy on a web server
 
@@ -65,7 +67,7 @@ Deployment needs:
 - A Linux host with Docker Compose and Chromium sandbox support.
 - A domain and HTTPS origin matching `APP_URL`.
 - A SendGrid API key with Mail Send access and an authenticated sender domain (`MAIL_TRANSPORT=sendgrid`). Resend remains available as an alternative. The default sender `reports@alhena.ai` is a configuration suggestion; this repository does not verify DNS or provision that mailbox.
-- To run new evaluations: a random shared worker secret of at least 32 characters, explicit `MODEL_PROVIDER=openai` or `MODEL_PROVIDER=anthropic`, its matching API key, and explicit `JUDGE_MODEL` and `AUDITOR_MODEL` IDs supported by that account.
+- To run new evaluations: a random shared worker secret of at least 32 characters, explicit provider and model IDs, plus either the selected API key or the isolated Claude CLI judge configuration.
 
 The report library, onboarding and mail dispatcher can run without worker or model credentials:
 

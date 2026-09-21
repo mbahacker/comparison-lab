@@ -58,3 +58,4 @@ test-results/
 playwright-report/
 *.tsbuildinfo
 *.log
+/.secrets/

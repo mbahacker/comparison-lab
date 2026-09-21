@@ -2,13 +2,9 @@ import { randomUUID } from 'node:crypto';
 import { RUBRIC, criteriaFor, WorkerError } from './protocol.mjs';
 import { deriveCheckedScore, checkQuotes, mergeAudit } from './scoring.mjs';
 import { providerStructuredResponse } from './model-provider.mjs';
+import { verdictSchema } from './verdict-schema.mjs';
+export { verdictSchema } from './verdict-schema.mjs';
 
-const object = properties => ({ type: 'object', properties, required: Object.keys(properties), additionalProperties: false });
-const string = { type: 'string' };
-export function verdictSchema(mode, auditor = false) {
-  const check = auditor ? object({ classification: { type: 'string', enum: ['AGREE', 'FP', 'FN'] }, reason: string, evidence: string }) : object({ pass: { type: 'boolean' }, evidence: string });
-  return object({ checks: object(Object.fromEntries(criteriaFor(mode).map(c => [c.id, check]))), resolution_class: { type: 'string', enum: ['resolved', 'partial', 'deflected', 'failed'] }, learning: string });
-}
 // Kept as an exported wrapper so existing injected callers and tests remain compatible.
 export async function structuredResponse(options) { return providerStructuredResponse(options); }
 function mask(text, names) {
