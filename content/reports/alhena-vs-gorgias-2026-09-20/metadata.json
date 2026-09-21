@@ -1,0 +1,33 @@
+{
+  "slug": "alhena-vs-gorgias-2026-09-20",
+  "title": "Alhena vs. Gorgias",
+  "description": "Shopping and support quality across six live storefronts, scored against Gorgias\u2019s published criteria.",
+  "publishedAt": "2026-09-20T20:00:00.000Z",
+  "vendors": [
+    "Alhena",
+    "Gorgias"
+  ],
+  "storeCount": 6,
+  "conversationCount": 12,
+  "turnCount": 120,
+  "criterionCount": 26,
+  "protocol": "quality-pilot-v1",
+  "commissionedBy": "Alhena",
+  "scores": [
+    {
+      "vendor": "Alhena",
+      "shopping": 96,
+      "support": 100
+    },
+    {
+      "vendor": "Gorgias",
+      "shopping": 76.7,
+      "support": 82.7
+    }
+  ],
+  "limitations": [
+    "Selected sample of three storefronts per provider.",
+    "Different storefronts and configurations; quality scores only.",
+    "Original Paula\u2019s Choice session isolation remains unconfirmed."
+  ]
+}

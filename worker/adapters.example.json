@@ -1,0 +1,10 @@
+[
+  {
+    "id": "reviewed-store-widget-v1",
+    "hostname": "store.example.com",
+    "vendor": "Example provider",
+    "launcher": "button[aria-label='Open chat']",
+    "transcript": "[role='log']",
+    "assistantMessages": "[data-message-author='assistant']"
+  }
+]

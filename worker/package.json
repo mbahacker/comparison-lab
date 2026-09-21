@@ -1,0 +1,16 @@
+{
+  "name": "comparison-lab-worker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node index.mjs",
+    "test": "node --test ../tests/worker*.test.mjs",
+    "fetch-rubric": "node upstream.mjs"
+  },
+  "dependencies": {
+    "ipaddr.js": "2.2.0",
+    "playwright": "1.62.1"
+  }
+}

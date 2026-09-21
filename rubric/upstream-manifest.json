@@ -1,0 +1,30 @@
+{
+  "commit": "19b1420d2520d48baa52be81ac33fc4b9bd0ff8b",
+  "retrieved": "2026-09-20",
+  "files": {
+    "eval-score.js": {
+      "sha256": "2da7e02b14e4a38d7e7a679e3986120cf46e3a505003a84d89e2006909de3cde",
+      "url": "https://raw.githubusercontent.com/gorgias/ai-agent-benchmark/19b1420d2520d48baa52be81ac33fc4b9bd0ff8b/runner/eval-score.js"
+    },
+    "eval-signals.js": {
+      "sha256": "38c6e975eeefb3a3da86fe300146897d3046abd6a2f0fbddff86379a4c43b38f",
+      "url": "https://raw.githubusercontent.com/gorgias/ai-agent-benchmark/19b1420d2520d48baa52be81ac33fc4b9bd0ff8b/runner/eval-signals.js"
+    },
+    "classify.js": {
+      "sha256": "67d0421f823da8a7fff125f2ed21b47b0f2c2df372319b4d14f2ad55fdedd59d",
+      "url": "https://raw.githubusercontent.com/gorgias/ai-agent-benchmark/19b1420d2520d48baa52be81ac33fc4b9bd0ff8b/runner/classify.js"
+    },
+    "reply-clean.js": {
+      "sha256": "b09f8abe3100f821810a6bd854eed63d36c0542769eea8e347a3dca448f0c1bf",
+      "url": "https://raw.githubusercontent.com/gorgias/ai-agent-benchmark/19b1420d2520d48baa52be81ac33fc4b9bd0ff8b/runner/reply-clean.js"
+    },
+    "message-style.js": {
+      "sha256": "0628391a6a5f5b65790ae141217db9a217f50977a21859222adc6f284e36822a",
+      "url": "https://raw.githubusercontent.com/gorgias/ai-agent-benchmark/19b1420d2520d48baa52be81ac33fc4b9bd0ff8b/runner/message-style.js"
+    },
+    "eval-rubric.md": {
+      "sha256": "cd2636faad19e227401275377f3a89943b6f8652ead3b8364e1b639d8a85f969",
+      "url": "https://raw.githubusercontent.com/gorgias/ai-agent-benchmark/19b1420d2520d48baa52be81ac33fc4b9bd0ff8b/runner/eval-rubric.md"
+    }
+  }
+}

@@ -1,0 +1,59 @@
+name: comparison-lab
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    environment: &web-environment
+      NODE_ENV: production
+      APP_URL: ${APP_URL:?Set the public HTTPS URL}
+      DATA_DIR: /data
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-ashu@alhena.ai}
+      MAIL_FROM: ${MAIL_FROM:?Set a verified sender address}
+      MAIL_TRANSPORT: resend
+      RESEND_API_KEY: ${RESEND_API_KEY:?Set the transactional email key}
+      WORKER_SECRET: ${WORKER_SECRET:?Set a random secret of at least 32 characters}
+    volumes:
+      - app-data:/data
+    ports:
+      - "127.0.0.1:3100:3100"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+  mailer:
+    build: .
+    restart: unless-stopped
+    environment: *web-environment
+    volumes:
+      - app-data:/data
+    command: ["node", "--experimental-strip-types", "lib/server/mail-daemon.ts"]
+    healthcheck:
+      disable: true
+    security_opt:
+      - no-new-privileges:true
+    cap_drop: [ALL]
+  worker:
+    build:
+      context: .
+      dockerfile: worker/Dockerfile
+    restart: unless-stopped
+    init: true
+    shm_size: 1gb
+    environment:
+      APP_BASE_URL: http://web:3100
+      WORKER_API_KEY: ${WORKER_SECRET:?Set the same worker secret}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?Set the evaluator model key}
+      JUDGE_MODEL: ${JUDGE_MODEL:?Set the judge model}
+      AUDITOR_MODEL: ${AUDITOR_MODEL:?Set the auditor model}
+      WORKER_DATA_DIR: /data
+      RUBRIC_CACHE_DIR: /data/reference-cache
+    volumes:
+      - worker-data:/data
+    depends_on:
+      web:
+        condition: service_healthy
+    security_opt:
+      - seccomp:./deploy/chromium-seccomp.json
+    cap_drop: [ALL]
+volumes:
+  app-data:
+  worker-data:

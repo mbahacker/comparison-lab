@@ -1,0 +1,34 @@
+{
+  "shopping": {
+    "key": "everyday-value",
+    "label": "Everyday value buyer",
+    "turns": [
+      "Hi! I'm shopping but not sure what's right for me, can you help me choose?",
+      "I want something for everyday use, good quality, and I care about value for money.",
+      "I'd like to stay within a sensible budget, what are my best options?",
+      "Can you compare your two most popular options and tell me which is better for me?",
+      "Which one is your overall best seller, and is it well reviewed?",
+      "Okay, can you add your top recommendation to my cart?",
+      "What's my total, and do you offer free shipping or a first-order discount?",
+      "Is there a warranty or guarantee if something goes wrong?",
+      "How long will delivery take, roughly?",
+      "And if I change my mind, how easy is it to return?"
+    ]
+  },
+  "support": {
+    "key": "returns",
+    "label": "Returns & exchanges",
+    "turns": [
+      "What is your return policy?",
+      "How many days do I have to return something?",
+      "How do I start a return or an exchange?",
+      "Do I have to pay for return shipping?",
+      "How long until I get my refund once you receive it?",
+      "Can I exchange for a different size or option instead of a refund?",
+      "Are any items final sale / non-returnable?",
+      "Do I need the original packaging to return something?",
+      "Can I return an online order in a physical store?",
+      "How do I track the status of my refund?"
+    ]
+  }
+}

@@ -1,0 +1,217 @@
+{
+  "id": "gorgias-quality-2026-09-20",
+  "commit": "19b1420d2520d48baa52be81ac33fc4b9bd0ff8b",
+  "source_url": "https://github.com/gorgias/ai-agent-benchmark/blob/19b1420d2520d48baa52be81ac33fc4b9bd0ff8b/runner/eval-rubric.md",
+  "source_sha256": "cd2636faad19e227401275377f3a89943b6f8652ead3b8364e1b639d8a85f969",
+  "attribution": "Published by Gorgias. Criteria transcribed from the user-supplied study evidence. No upstream source-code license is asserted.",
+  "criteria": [
+    {
+      "id": "a_direct",
+      "mode": "shopping",
+      "dimension": "answer",
+      "points": 14,
+      "signal_gate": null,
+      "passes_when": "each shopper question gets a direct, on-topic, **substantive** response. A generic greeting or brand boilerplate (\"Hi! How can I help?\", \"We're so happy to have you here!\") that does not actually answer the question **fails** \u2014 warmth, enthusiasm and emojis are not substance."
+    },
+    {
+      "id": "a_consistent",
+      "mode": "shopping",
+      "dimension": "answer",
+      "points": 9,
+      "signal_gate": null,
+      "passes_when": "no contradiction across turns; no invented policies/specs"
+    },
+    {
+      "id": "a_no_ignored",
+      "mode": "shopping",
+      "dimension": "answer",
+      "points": 7,
+      "signal_gate": null,
+      "passes_when": "no shopper turn is left unanswered or answered with an unrelated reply"
+    },
+    {
+      "id": "d_clarify",
+      "mode": "shopping",
+      "dimension": "discovery",
+      "points": 8,
+      "signal_gate": null,
+      "passes_when": "on a BROAD/ambiguous opener (\"a gift\", \"where do I start\", \"something for X\") it asks a **relevant** clarifying question (budget, recipient, use-case, skin type, size, preference) before recommending. On an already-specific ask, going straight to a targeted answer also passes \u2014 the fail is *guessing blind on a vague ask*."
+    },
+    {
+      "id": "d_progressive",
+      "mode": "shopping",
+      "dimension": "discovery",
+      "points": 7,
+      "signal_gate": null,
+      "passes_when": "it **uses the shopper's answers** to narrow/refine across turns (builds a profile) \u2014 a later recommendation reflects earlier stated constraints, not a generic pick repeated."
+    },
+    {
+      "id": "d_not_dump",
+      "mode": "shopping",
+      "dimension": "discovery",
+      "points": 5,
+      "signal_gate": null,
+      "passes_when": "it does **not** dump a generic best-seller list on a vague opener before understanding needs (a wall of unqualified products fails)."
+    },
+    {
+      "id": "r_named",
+      "mode": "shopping",
+      "dimension": "recommendation",
+      "points": 9,
+      "signal_gate": null,
+      "passes_when": "recommends at least one specific, named product"
+    },
+    {
+      "id": "r_fit",
+      "mode": "shopping",
+      "dimension": "recommendation",
+      "points": 8,
+      "signal_gate": null,
+      "passes_when": "ties the recommendation to the shopper's **specific stated constraints** (budget, use-case, skin type, recipient\u2026) with real reasoning. A product dropped with generic praise/emojis but no rationale connected to what the shopper actually said **fails**."
+    },
+    {
+      "id": "r_plausible",
+      "mode": "shopping",
+      "dimension": "recommendation",
+      "points": 5,
+      "signal_gate": null,
+      "passes_when": "recommendations are appropriate to the store's catalog and the request"
+    },
+    {
+      "id": "e_price",
+      "mode": "shopping",
+      "dimension": "rich",
+      "points": 6,
+      "signal_gate": "has_price",
+      "passes_when": "a concrete price is attached to a recommended product"
+    },
+    {
+      "id": "e_link",
+      "mode": "shopping",
+      "dimension": "rich",
+      "points": 7,
+      "signal_gate": "has_link",
+      "passes_when": "a product link/card the shopper can open is presented"
+    },
+    {
+      "id": "e_reviews",
+      "mode": "shopping",
+      "dimension": "rich",
+      "points": 3,
+      "signal_gate": "has_reviews",
+      "passes_when": "review counts/ratings (or images) support the recommendation"
+    },
+    {
+      "id": "e_options",
+      "mode": "shopping",
+      "dimension": "rich",
+      "points": 2,
+      "signal_gate": "has_options",
+      "passes_when": "multiple distinct options are laid out for comparison"
+    },
+    {
+      "id": "c_cta",
+      "mode": "shopping",
+      "dimension": "close",
+      "points": 5,
+      "signal_gate": null,
+      "passes_when": "ends with a concrete next step (open the product, pick a size, apply code\u2026)"
+    },
+    {
+      "id": "c_cart",
+      "mode": "shopping",
+      "dimension": "close",
+      "points": 3,
+      "signal_gate": null,
+      "passes_when": "facilitates purchase mechanics (add-to-cart, checkout guidance). If the shopper **explicitly** asks to add to cart or for a total/checkout and the agent does not actually do it (re-asks, deflects, or loops), this **fails** \u2014 an unfulfilled explicit purchase request is a hard miss."
+    },
+    {
+      "id": "c_clean",
+      "mode": "shopping",
+      "dimension": "close",
+      "points": 2,
+      "signal_gate": null,
+      "passes_when": "conversation closes cleanly (no dangling question, no mid-thought stop)"
+    },
+    {
+      "id": "s_answered",
+      "mode": "support",
+      "dimension": "resolution",
+      "points": 18,
+      "signal_gate": "no_deflect",
+      "passes_when": "the PRIMARY ask gets a complete, store-specific answer or procedure in-channel. A generic pointer (\"check our returns page\"), a partial answer, or industry-generality boilerplate fails"
+    },
+    {
+      "id": "s_outcome",
+      "mode": "support",
+      "dimension": "resolution",
+      "points": 12,
+      "signal_gate": "no_deflect",
+      "passes_when": "the ending is outcome-correct: resolved in-channel, **or** a justified handover done well (context collected first, expectations set). An unjustified bail on an answerable question fails"
+    },
+    {
+      "id": "s_no_deflect",
+      "mode": "support",
+      "dimension": "resolution",
+      "points": 10,
+      "signal_gate": "no_deflect",
+      "passes_when": "doesn't push the shopper out of channel (\"email us\", \"call us\") when the question was answerable in-chat"
+    },
+    {
+      "id": "g_specific",
+      "mode": "support",
+      "dimension": "accuracy",
+      "points": 13,
+      "signal_gate": null,
+      "passes_when": "gives \u22652 concrete, store-specific facts (a number, timeframe, named policy term, concrete condition). One vague reassurance (\"we'll sort it out\") fails"
+    },
+    {
+      "id": "g_consistent",
+      "mode": "support",
+      "dimension": "accuracy",
+      "points": 5,
+      "signal_gate": null,
+      "passes_when": "no self-contradiction across turns"
+    },
+    {
+      "id": "g_grounded",
+      "mode": "support",
+      "dimension": "accuracy",
+      "points": 7,
+      "signal_gate": null,
+      "passes_when": "policy/product claims read as grounded in THIS store (named policies, actual conditions, store-specific procedures) rather than plausible industry generalities"
+    },
+    {
+      "id": "t_steps",
+      "mode": "support",
+      "dimension": "actionability",
+      "points": 12,
+      "signal_gate": null,
+      "passes_when": "the shopper leaves with steps they can execute NOW in their situation (cold session, no account) \u2014 numbered or clearly sequenced; \"reach out if\u2026\" alone fails"
+    },
+    {
+      "id": "t_complete",
+      "mode": "support",
+      "dimension": "actionability",
+      "points": 8,
+      "signal_gate": null,
+      "passes_when": "the answer covers the actual ask (not a fragment of it)"
+    },
+    {
+      "id": "k_expectations",
+      "mode": "support",
+      "dimension": "close",
+      "points": 8,
+      "signal_gate": null,
+      "passes_when": "sets expectations with WHO acts and WHEN (a timeframe) \u2014 vague \"soon\"/\"we'll be in touch\" fails"
+    },
+    {
+      "id": "k_clean",
+      "mode": "support",
+      "dimension": "close",
+      "points": 7,
+      "signal_gate": null,
+      "passes_when": "clean, complete close"
+    }
+  ]
+}

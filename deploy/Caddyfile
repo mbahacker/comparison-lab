@@ -1,0 +1,7 @@
+# Replace the example domain with the same hostname used in APP_URL.
+compare.example.com {
+  encode zstd gzip
+  reverse_proxy 127.0.0.1:3100
+  header Strict-Transport-Security "max-age=31536000"
+  # Approval URLs contain bearer tokens. Do not add full-URL access logging.
+}
