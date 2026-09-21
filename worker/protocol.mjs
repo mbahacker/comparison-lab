@@ -1,7 +1,9 @@
-import fs from 'node:fs';
+import rubric from '../rubric/criteria.json' with { type: 'json' };
+import questions from '../rubric/questions.json' with { type: 'json' };
 
-export const RUBRIC = JSON.parse(fs.readFileSync(new URL('../rubric/criteria.json', import.meta.url), 'utf8'));
-export const QUESTIONS = JSON.parse(fs.readFileSync(new URL('../rubric/questions.json', import.meta.url), 'utf8'));
+// Static JSON imports work in both the Node worker and Next's server bundler.
+export const RUBRIC = rubric;
+export const QUESTIONS = questions;
 export const PROTOCOL = Object.freeze({ id: 'quality-pilot-v1', rubricCommit: RUBRIC.commit,
   storesPerProvider: 3, providers: 2, conversations: 12, turns: 120, qualityChecks: 156,
   qualityOnly: true, themes: { shopping: 'everyday-value', support: 'returns' } });

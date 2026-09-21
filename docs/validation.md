@@ -14,3 +14,11 @@ Validated locally on September 20, 2026 with Node.js 24.19.0.
 ## Still requires the deployment environment
 
 Docker is not installed on the development machine, so images and Compose startup were not executed locally. CI builds both images. Actual transactional email delivery, browser sandbox startup on the target host, model calls and live storefront capture must be verified before production launch. No new live evaluation was performed as part of this application build. The supplied September 20 report is imported historical evidence, with its original limitations preserved.
+
+## Brand and report visualization refresh
+
+- 36 tests pass, including four new chart aggregation checks against the unchanged published evidence.
+- Production build and standalone HTTP checks pass for the homepage, report, evidence API and both generated social images.
+- A separately configured runtime APP_URL correctly appears in homepage and report social metadata; this does not depend on the build machine origin.
+- Browser verification covers lane switching, exact conversation drill-down, restored deep links after reload, public provider-name prefill and 390-pixel mobile layouts.
+- Original report evidence and rubric JSON are unchanged.
