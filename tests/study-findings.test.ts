@@ -37,7 +37,7 @@ test('findings quote published values in study order with scope and coverage', (
   assert.equal(findings[1], 'Support composite, out of 100: Beta 75.8, Alpha 81.4.');
   assert.match(findings[3], /shopping Beta 17\.2 s, Alpha 11\.8 s; support Beta 14\.1 s, Alpha 8\.7 s/);
   assert.match(findings[4], /Beta's results include 4 of 5 storefronts for shopping and 4 of 5 for support/);
-  assert.match(findings.at(-1)!, /10 storefront deployments captured Jan 2–3, 2020, not every deployment or an overall vendor ranking/);
+  assert.match(findings.at(-1)!, /on-site chat widget across the 10 storefront deployments captured Jan 2–3, 2020\. They do not cover other products either vendor sells/);
 });
 
 test('findings omit timing when a duration is unpublished and show ineligible scores plainly', () => {

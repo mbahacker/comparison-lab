@@ -1,5 +1,6 @@
 import type { PolicyStudySummary } from './policy-study.ts';
 import { studyFindings } from './study-findings.ts';
+import { exclusiveOfferings, integrationOnly, phraseList, scopesFor } from './product-scope.ts';
 
 /** Homepage FAQ, also published as FAQPage structured data and in llms-full.txt. */
 /** `a` is the full answer text (structured data, llms-full.txt); `lead` and `points` render the same sentences as a list. */
@@ -19,6 +20,20 @@ const STATIC_FAQ: FaqItem[] = [
 export function faqItems(study?: PolicyStudySummary): FaqItem[] {
   if (!study?.providers.length) return STATIC_FAQ;
   const points = studyFindings(study).filter(f => !f.startsWith('Overall'));
-  return [{ q: `What did the latest study find?`, a: `${study.title}. ${points.join(' ')}`, lead: `${study.title}:`, points, href: `/studies/${study.slug}`, linkText: 'Read the study' }, ...STATIC_FAQ];
+  const vendors = scopesFor(study.providers);
+  const scope: FaqItem[] = vendors ? [{
+    q: `Does this compare everything ${vendors.map(v => v.name).join(' and ')} offer?`,
+    a: `No. Studies test one form factor, the AI agent in each store's on-site chat widget. ${[
+      ...vendors.map(v => {
+        const others = vendors.filter(o => o !== v), own = exclusiveOfferings(v, others);
+        if (!own.length) return '';
+        const viaIntegration = own.some(row => others.some(o => o.cells[row.key]?.status === 'integration'));
+        return `${v.name} lists ${phraseList(own)}, which ${others.map(o => o.domain).join(' and ')} ${others.length > 1 ? 'do' : 'does'} not ${viaIntegration ? 'sell as its own products' : 'list'}.`;
+      }),
+      ...vendors.map(v => { const linked = integrationOnly(v); return linked.length ? `${v.name} connects to ${phraseList(linked)} through integrations instead.` : ''; }),
+    ].filter(Boolean).join(' ')} None of these were tested. The study's product scope table lists each vendor's offerings with sources.`,
+    href: `/studies/${study.slug}#product-scope`, linkText: 'See the product scope table',
+  }] : [];
+  return [{ q: `What did the latest study find?`, a: `${study.title}. ${points.join(' ')}`, lead: `${study.title}:`, points, href: `/studies/${study.slug}`, linkText: 'Read the study' }, ...scope, ...STATIC_FAQ];
 }
 

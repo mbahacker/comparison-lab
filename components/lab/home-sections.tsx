@@ -22,7 +22,7 @@ export function HomeHero({ tools, studies }: { tools: ResearchTool[]; studies: P
     <div className="shell hero-grid">
       <div className="hero-text">
         <h1 id="hero-title">Ecommerce AI agents, tested on real storefronts.</h1>
-        <p className="hero-lede">Every agent gets the same customer conversations on live stores. We check each answer against the store’s own policies, time the wait, and publish the scores with the evidence behind them.</p>
+        <p className="hero-lede">Every agent gets the same customer conversations in the chat widget on live stores. We check each answer against the store’s own policies, time the wait, and publish the scores with the evidence behind them.</p>
         <div className="hero-cta">
           <a className="btn btn-primary" href="#tools">See the results <ArrowRight size={18} aria-hidden="true" /></a>
           <Link className="btn btn-secondary" href="/request">Analyze your tool</Link>
@@ -54,7 +54,7 @@ function Scoreboard({ tools, studies }: { tools: ResearchTool[]; studies: Policy
     {tools.length > HERO_TOOL_LIMIT && <a className="scoreboard-more" href="#tools">See all {tools.length} tools</a>}
     {shown.length > 0 && <div className="scoreboard-foot">
       <PartsLegend />
-      <p>Each bar splits the composite into the points each measure adds. Scores describe the storefronts tested, not every deployment.</p>
+      <p>Each bar splits the composite into the points each measure adds. Scores cover the on-site chat widget on the storefronts tested, not every product or deployment.</p>
     </div>}
   </aside>;
 }
@@ -109,7 +109,7 @@ export function HomeProcess({ study }: { study?: PolicyStudySummary }) {
         </li>
         <li>
           <h3>Talk to the agent like a customer</h3>
-          <p>Every store gets the same scripted conversations: five shopping, five support, and a guardrail test that tries to pull the agent off course.</p>
+          <p>Every store gets the same scripted conversations in its on-site chat widget: five shopping, five support, and a guardrail test that tries to pull the agent off course.</p>
           <div className="theme-lists">{THEMES.map(lane => <div key={lane.key}><p>{lane.label}</p><ul>{lane.themes.map(t => <li key={t}>{t}</li>)}</ul></div>)}</div>
           <p className="step-source">Question pools from Gorgias’s public <a href="https://github.com/gorgias/ai-agent-benchmark" target="_blank" rel="noreferrer">AI agent benchmark</a>.</p>
           {study && <p className="step-proof"><strong>{study.sample.capturedCoreContexts}</strong> conversations, plus {study.sample.guardrailContexts} guardrail tests</p>}

@@ -6,6 +6,7 @@ import type { PolicyLane, PolicyStudySummary, StudyMetric } from '@/lib/policy-s
 import { COMPOSITE_WEIGHTS, fullAnswerSeconds } from '@/lib/score-parts';
 import { studyFindings, toolSummarySentence } from '@/lib/study-findings';
 import { getResearchLibrary } from '@/lib/server/research-library';
+import { CAPABILITIES, PRODUCT_SCOPE_CHECKED_AT, notComparedOfferings, scopesFor, type VendorScope } from '@/lib/product-scope';
 import { publicUrl } from '@/lib/server/public-data';
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +16,17 @@ const LANES: { key: PolicyLane; name: string }[] = [{ key: 'shopping', name: 'Sh
 const metric = (m: StudyMetric) => m.value === null ? 'not eligible' : score(m.value);
 const pct = (n: number) => `${Math.round(n * 100)}%`;
 type Pool = { label: string; guardrail?: boolean };
+
+function scopeSection(study: PolicyStudySummary) {
+  const vendors = scopesFor(study.providers);
+  const intro = 'Scope: this study tests one form factor, the AI agent in each store\'s on-site chat widget. Other products the vendors sell were not tested.';
+  if (!vendors) return intro;
+  const cell = (v: VendorScope, key: string) => { const c = v.cells[key]; if (!c || c.status === 'not-listed') return `not listed on ${v.domain}`; return `${c.status === 'integration' ? 'via integrations' : 'yes'}${c.product ? ` (${label(c.product)})` : ''}`; };
+  const rows = CAPABILITIES.map(row => `| ${row.label} | ${vendors.map(v => cell(v, row.key)).join(' | ')} | ${row.tested === true ? 'tested' : row.tested === 'partly' ? 'only inside chat conversations' : 'not tested'} |`).join('\n');
+  const sources = [...new Set(vendors.flatMap(v => Object.values(v.cells).map(c => c.source).filter(Boolean)))];
+  const offers = vendors.some(v => v.id === 'alhena') ? `\n\nAlhena products this study doesn't compare:\n${notComparedOfferings().map(o => `- ${o.title}: ${o.description} (${o.href})`).join('\n')}` : '';
+  return `${intro}\n\nProduct scope beyond the chat widget, from each vendor's public website as of ${PRODUCT_SCOPE_CHECKED_AT} (reference information, not study results):\n\n| Capability | ${vendors.map(v => label(v.name)).join(' | ')} | In this study |\n|---|${vendors.map(() => '---').join('|')}|---|\n${rows}\n\nSources: ${sources.join(', ')}${offers}`;
+}
 
 function studySection(study: PolicyStudySummary) {
   const p = study.providers;
@@ -43,6 +55,8 @@ Key findings:
 ${studyFindings(study).map(f => `- ${f}`).join('\n')}
 
 ${table}
+
+${scopeSection(study)}
 
 Limitations:
 ${study.limitations.map(l => `- ${l}`).join('\n')}

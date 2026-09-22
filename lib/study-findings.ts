@@ -19,7 +19,7 @@ export function studyDeployments(study: PolicyStudySummary) {
 }
 
 export function studyScope(study: PolicyStudySummary) {
-  return `Scores describe the ${studyDeployments(study)} storefront deployments captured ${captureRange(study.captureStartAt, study.captureEndAt)}, not every deployment or an overall vendor ranking. Alhena operates Alhena Research Lab.`;
+  return `Scores cover the AI agent in each store's on-site chat widget across the ${studyDeployments(study)} storefront deployments captured ${captureRange(study.captureStartAt, study.captureEndAt)}. They do not cover other products either vendor sells, every deployment, or an overall vendor ranking. Alhena operates Alhena Research Lab.`;
 }
 
 export function studyFindings(study: PolicyStudySummary): string[] {

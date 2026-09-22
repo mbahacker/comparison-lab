@@ -921,6 +921,75 @@ h1,
   line-height: 1.6;
   color: var(--quiet);
 }
+.study-scope {
+  border-top: 1px solid var(--rule);
+}
+.study-scope .data-table-wrap {
+  margin-top: 40px;
+}
+.scope-table th[scope="row"] {
+  background: #fff;
+  color: var(--ink);
+  font-size: 0.875rem;
+}
+.scope-table tr.is-tested th[scope="row"],
+.scope-table tr.is-tested td {
+  background: var(--blue-soft);
+}
+.scope-cell.is-yes a,
+.scope-cell.is-integration a {
+  color: var(--ink);
+  text-decoration: underline;
+  text-decoration-color: #b9c6da;
+}
+.scope-cell.is-yes::before {
+  content: "✓ ";
+  color: var(--blue);
+  font-weight: 700;
+}
+.scope-cell.is-missing {
+  color: var(--quiet);
+  font-size: 0.8125rem;
+}
+.scope-offers {
+  margin-top: 48px;
+}
+.scope-offers h3 {
+  font-size: 1.125rem;
+  font-weight: 600;
+}
+.scope-offers ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+  margin: 18px 0 24px;
+  padding: 0;
+  list-style: none;
+}
+.scope-offers li {
+  display: grid;
+  gap: 6px;
+  padding: 20px;
+  border: 1px solid var(--rule);
+  border-radius: 14px;
+  background: #fff;
+}
+.scope-offers li a {
+  font-weight: 600;
+  color: var(--ink);
+}
+.scope-offers li span {
+  font-size: 0.875rem;
+  line-height: 1.55;
+  color: var(--ink-soft);
+}
+.scope-profile ul {
+  display: grid;
+  gap: 8px;
+  margin: 16px 0 0;
+  padding-left: 18px;
+  list-style: disc;
+}
 .study-caveats {
   background: var(--paper-cool);
   border-block: 1px solid var(--rule);

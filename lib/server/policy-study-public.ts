@@ -3,6 +3,7 @@ import { POLICY_LABEL } from '../policy-study.ts';
 import { breadcrumbData, publicUrl, publisher } from './public-data.ts';
 import { studyFindings } from '../study-findings.ts';
 import { fullAnswerSeconds } from '../score-parts.ts';
+import { CAPABILITIES, vendorScope } from '../product-scope.ts';
 
 const MEASURES = [['composite', 'composite'], ['policyResolution', 'policy-compliant resolution'], ['quality', 'answer quality'], ['speed', 'full-answer speed score']] as const;
 
@@ -22,7 +23,7 @@ export function policyStudyStructuredData(study: PolicyStudySummary) {
       description: study.description, abstract: studyFindings(study).join(' '), url, mainEntityOfPage: url,
       datePublished: study.publishedAt, dateModified: study.publishedAt, temporalCoverage: `${study.captureStartAt}/${study.captureEndAt}`,
       publisher: publisher(), author: publisher(), creator: publisher(), inLanguage: 'en',
-      about: [...study.providers.map(p => ({ '@type': 'SoftwareApplication', name: p.name, url: p.website, applicationCategory: 'Ecommerce AI shopping and support agent' })), POLICY_LABEL, 'Answer quality', 'Full-answer speed'],
+      about: [...study.providers.map(p => { const scope = vendorScope(p.website); return { '@type': 'SoftwareApplication', name: p.name, url: p.website, applicationCategory: 'Ecommerce AI shopping and support agent', ...(scope ? { featureList: CAPABILITIES.filter(row => scope.cells[row.key] && scope.cells[row.key].status !== 'not-listed').map(row => row.label) } : {}) }; }), POLICY_LABEL, 'Answer quality', 'Full-answer speed'],
       keywords: ['ecommerce AI agent evaluation', 'AI shopping assistant benchmark', 'AI customer support benchmark', ...study.providers.map(p => p.name)],
       variableMeasured: variables,
       measurementTechnique: `${study.protocol}; method SHA-256 ${study.method.sha256}`,

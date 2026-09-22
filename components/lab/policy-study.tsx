@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { ReportEmailVerification } from './report-email-verification';
 import { PartsLegend, ScoreRow } from './score-bars';
 import { DemoLink } from './demo-link';
+import { ProductScope } from './product-scope';
 import { fullAnswerSeconds } from '@/lib/score-parts';
 import { studyFindings } from '@/lib/study-findings';
 import { api, captureRange, date, score } from '@/lib/client';
@@ -110,6 +111,7 @@ export function PolicyStudy({ study }: { study: PolicyStudySummary }) {
         </dl>}
       </div>
     </section>
+    <ProductScope providers={study.providers} />
     <section className="study-section study-caveats" aria-labelledby="study-caveats">
       <div className="shell">
         <div className="section-intro"><h2 id="study-caveats">Read this before the scores</h2><p>Policy-compliant resolution can include a verified policy-required next step. It does not establish actual refunds, completed account actions or human-resolved orders. This is a separately versioned Alhena Research Lab method, not an independent certification or the Gorgias leaderboard.</p></div>
