@@ -12,3 +12,13 @@ export type Vendor={name:string;website:string;customers:Customer[]};
 export type ComparisonInput={vendors:Vendor[];notes?:string;consent:boolean};
 export function score(value:number){return Number.isInteger(value)?String(value):value.toFixed(1);}
 export function date(value:string){return new Intl.DateTimeFormat("en-US",{year:"numeric",month:"short",day:"numeric",timeZone:"UTC"}).format(new Date(value));}
+/** Capture range in UTC: "Sep 21–22, 2026", "Sep 30 – Oct 2, 2026" or a single day. */
+export function captureRange(startAt:string,endAt:string){
+  const start=new Date(startAt),end=new Date(endAt);
+  const format=(d:Date,options:Intl.DateTimeFormatOptions)=>new Intl.DateTimeFormat("en-US",{...options,timeZone:"UTC"}).format(d);
+  const full=(d:Date)=>format(d,{month:"short",day:"numeric",year:"numeric"});
+  if(full(start)===full(end))return full(end);
+  if(start.getUTCFullYear()!==end.getUTCFullYear())return `${full(start)} – ${full(end)}`;
+  if(start.getUTCMonth()===end.getUTCMonth())return `${format(start,{month:"short",day:"numeric"})}–${format(end,{day:"numeric"})}, ${end.getUTCFullYear()}`;
+  return `${format(start,{month:"short",day:"numeric"})} – ${full(end)}`;
+}

@@ -1,27 +1,14 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import questionPools from "@/rubric/full-questions.json";
-import { score } from "@/lib/client";
 import type { PolicyLane, PolicyStudySummary } from "@/lib/policy-study";
 import type { ResearchTool } from "@/lib/research-library";
-import { COMPOSITE_WEIGHTS, compositeParts, fullAnswerSeconds, type ScorePartKey } from "@/lib/score-parts";
+import { COMPOSITE_WEIGHTS, type ScorePartKey } from "@/lib/score-parts";
+import { PART_NAMES, PartsLegend, ScoreRow } from "./score-bars";
+import { captureRange, date } from "@/lib/client";
 
 const LANES: { key: PolicyLane; label: string }[] = [{ key: "shopping", label: "Shopping" }, { key: "support", label: "Support" }];
-const PART_NAMES: Record<ScorePartKey, string> = { policyResolution: "Resolution", quality: "Quality", speed: "Speed" };
 const HERO_TOOL_LIMIT = 4;
-
-const utcDay = (value: string) => new Date(value);
-const format = (value: Date, options: Intl.DateTimeFormatOptions) => new Intl.DateTimeFormat("en-US", { ...options, timeZone: "UTC" }).format(value);
-
-/** "Sep 21–22, 2026", "Sep 30 – Oct 2, 2026" or a single day. */
-export function captureRange(startAt: string, endAt: string) {
-  const start = utcDay(startAt), end = utcDay(endAt);
-  const full = (d: Date) => format(d, { month: "short", day: "numeric", year: "numeric" });
-  if (full(start) === full(end)) return full(end);
-  if (start.getUTCFullYear() !== end.getUTCFullYear()) return `${full(start)} – ${full(end)}`;
-  if (start.getUTCMonth() === end.getUTCMonth()) return `${format(start, { month: "short", day: "numeric" })}–${format(end, { day: "numeric" })}, ${end.getUTCFullYear()}`;
-  return `${format(start, { month: "short", day: "numeric" })} – ${full(end)}`;
-}
 
 function sharedStudy(tools: ResearchTool[], studies: PolicyStudySummary[]) {
   const slugs = new Set(tools.map(t => t.studySlug));
@@ -60,38 +47,14 @@ function Scoreboard({ tools, studies }: { tools: ResearchTool[]; studies: Policy
     {study && <p className="scoreboard-meta">{deployments} storefront deployments, {study.sample.capturedCoreContexts} conversations, captured {captureRange(study.captureStartAt, study.captureEndAt)}.</p>}
     {shown.length ? LANES.map(lane => <div className="lane-board" key={lane.key}>
       <h3>{lane.label}<span>Composite / 100</span></h3>
-      <ul>{shown.map(tool => <ScoreRow key={tool.id} tool={tool} lane={lane.key} />)}</ul>
+      <ul>{shown.map(tool => <ScoreRow key={tool.id} name={tool.name} href={`/tools/${tool.id}`} lane={lane.key} result={tool[lane.key]} />)}</ul>
     </div>) : <p className="scoreboard-empty">Scores from the first published study will appear here.</p>}
     {tools.length > HERO_TOOL_LIMIT && <a className="scoreboard-more" href="#tools">See all {tools.length} tools</a>}
     {shown.length > 0 && <div className="scoreboard-foot">
-      <ul className="parts-legend" aria-label="Bar segments">{(Object.keys(PART_NAMES) as ScorePartKey[]).map(key => <li key={key}><i className={`swatch part-${key}`} />{PART_NAMES[key]}</li>)}</ul>
+      <PartsLegend />
       <p>Each bar splits the composite into the points each measure adds. Scores describe the storefronts tested, not every deployment.</p>
     </div>}
   </aside>;
-}
-
-function ScoreRow({ tool, lane }: { tool: ResearchTool; lane: PolicyLane }) {
-  const result = tool[lane];
-  const value = result.composite.value;
-  const parts = compositeParts(lane, result);
-  const seconds = fullAnswerSeconds(result);
-  const summary = value === null
-    ? `${tool.name} ${lane} composite: not eligible`
-    : `${tool.name} ${lane} composite ${score(value)} out of 100${parts ? `: ${parts.map(p => `${PART_NAMES[p.key].toLowerCase()} ${score(p.score)}`).join(", ")}` : ""}`;
-  return <li className="score-row">
-    <Link className="score-row-name" href={`/tools/${tool.id}`}>
-      <strong>{tool.name}</strong>
-      {seconds !== null && <small>{seconds.toFixed(1)} s to a full answer</small>}
-    </Link>
-    <div className="score-bar" role="img" aria-label={summary}>
-      <span className="bar-fill">
-        {parts
-          ? parts.map(p => <span key={p.key} className={`bar-part part-${p.key}`} style={{ width: `${p.points}%` }} title={`${PART_NAMES[p.key]} ${score(p.score)} × ${Math.round(p.weight * 100)}% = ${p.points.toFixed(1)} points`} />)
-          : value !== null && <span className="bar-part part-total" style={{ width: `${value}%` }} />}
-      </span>
-    </div>
-    <strong className={value === null ? "score-row-value is-empty" : "score-row-value"}>{value === null ? "Not eligible" : score(value)}</strong>
-  </li>;
 }
 
 const MEASURES: { key: ScorePartKey; question: string; body: string }[] = [
@@ -157,7 +120,7 @@ export function HomeProcess({ study }: { study?: PolicyStudySummary }) {
         <li>
           <h3>Publish the evidence</h3>
           <p>Scores, capture dates, coverage and limits are public. The conversations behind them open with a verified work email.</p>
-          {study && <p className="step-proof">Latest study published <strong>{format(utcDay(study.publishedAt), { month: "short", day: "numeric", year: "numeric" })}</strong></p>}
+          {study && <p className="step-proof">Latest study published <strong>{date(study.publishedAt)}</strong></p>}
         </li>
       </ol>
     </div>
