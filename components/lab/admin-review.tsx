@@ -63,7 +63,7 @@ export function AdminReview({ token }: { token: string }) {
         <div className="request-scope">
           <strong>{isTool ? "Approve one tool analysis." : "Approve this comparison."}</strong>
           <p>{stores} storefronts, {data.request.limits?.conversations ?? stores * 2} conversations, at most {data.request.limits?.turns ?? stores * 20} new turns. Eligible analysis from the last 30 days is reused. The current plan is checked again before execution.</p>
-          {data.reuse && <p>{data.reuse.reusedConversations} conversations have reusable evidence; {data.reuse.newConversations} need new testing. {(data.reuse.existingTool || data.reuse.existingReport) && "A current complete analysis already exists, so approval links to it without starting another run."}</p>}
+          {data.reuse && !data.rosterAmendment && <p>{data.reuse.reusedConversations} conversations have reusable evidence; {data.reuse.newConversations} need new testing. {(data.reuse.existingTool || data.reuse.existingReport) && "A current complete analysis already exists, so approval links to it without starting another run."}</p>}
           <p>Completed evidence publishes after validation. Unsupported widgets, incomplete evidence or unresolved audit issues stop publication.</p>
           {isTool && <p>The tool is analyzed once. Comparison reports are generated against compatible tool analyses in the library using captures from the last 30 days. Other tools’ expired analyses are not refreshed without separate approval.</p>}
         </div>
