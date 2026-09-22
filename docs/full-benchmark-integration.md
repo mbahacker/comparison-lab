@@ -1,5 +1,7 @@
 # Full benchmark production integration plan
 
+**Historical integration plan.** This records the quality-pilot starting point and proposed full Gorgias automation benchmark. Production now uses the distinct policy-resolution method; see [the implemented workflow](automated-policy-evaluations.md). Statements about the production pilot and missing protocol fields below describe the planning baseline, not current runtime behavior.
+
 **Implementation plan, not shipped functionality. Updated 21 September 2026.**
 
 The production application still runs `quality-pilot-v1`. The private full-method validation study is complete, including its literal audit and both scoring variants. Nothing in this plan changes that study's frozen source, captures, judgments or audit selection, and no production rollout is implied.

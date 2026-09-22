@@ -1,4 +1,6 @@
-# Evaluation worker
+# Historical quality-pilot worker
+
+This document describes the frozen quality-pilot path and shared worker infrastructure. New submissions use the five-storefront policy-resolution workflow in [automated policy evaluations](automated-policy-evaluations.md), including bounded recovery, blind policy-resolution auditing and automatic publication after validation. The pilot-specific scope, grading and failure behavior below do not describe current submissions.
 
 The worker performs real browser conversations. It does not generate shopper or assistant conversation content, fabricate completion, or assign a score when a capture is unsupported. Only the 20 fixed published shopper questions are typed into the storefronts. The two themes are `everyday-value` and `returns`, repeated across three deployments for each of two providers: 12 conversations, 120 turns, 156 scored decisions across 26 distinct criteria.
 

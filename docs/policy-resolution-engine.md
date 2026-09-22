@@ -12,4 +12,4 @@ A future study must register at least five storefronts per provider and all ten 
 
 The transport and study collector must bind every capture, prompt, model response, audit and runtime amendment to immutable content hashes. The pure modules cannot prove that a transcript was observed live or that a declared audit is independent. A completed publication needs that lineage review and the separately approved publication manifest described in `policy-study-publication.md`.
 
-The existing three-storefront request worker remains the quality-pilot workflow. Publishing a policy-resolution study does not silently migrate those jobs, reuse their scores as PCR, or mix the two methods in the library.
+New submissions run the five-storefront policy-resolution workflow described in [automated policy evaluations](automated-policy-evaluations.md). Existing quality-pilot jobs retain their frozen protocol; publishing a policy-resolution study does not migrate those jobs, reuse their scores as PCR, or mix the two methods in the library.
