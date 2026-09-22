@@ -17,22 +17,31 @@ export async function discoverStorefronts(provider, { browser, signal, directory
   await context.route('**/*', route => { try { validatePublicUrl(route.request().url()); return route.continue(); } catch { return route.abort(); } });
   const page = await context.newPage(); page.on('popup', popup => popup.close());
   let readCount = 0;
-  async function read(url) {
+  async function read(url, deployment = false) {
     signal?.throwIfAborted();
     if (++readCount > maxPages) throw new WorkerError('research_incomplete', 'Bounded research did not verify five storefronts');
     validatePublicUrl(url); await resolvePublic(new URL(url).hostname);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); await delay(4000);
     const finalUrl = page.url(); validatePublicUrl(finalUrl);
-    const result = await page.evaluate(() => ({ title: document.title, text: document.body.innerText.slice(0, 100000),
-      links: [...document.querySelectorAll('a[href]')].map(a => ({ url: a.href, text: a.innerText.trim().slice(0, 200) })),
-      scripts: [...document.querySelectorAll('script[src]')].map(s => s.src) }));
-    return { ...result, finalUrl, retrievedAt: new Date().toISOString(), sourceSha256: sha(result.text),
-      observedProviderUrls: observedProviderUrls(provider, [...result.scripts, ...page.frames().map(f => f.url())]) };
+    const deadline = Date.now() + (deployment ? 20000 : 0);
+    let result, observed;
+    do {
+      signal?.throwIfAborted();
+      result = await page.evaluate(() => ({ title: document.title, text: document.body.innerText.slice(0, 100000),
+        links: [...document.querySelectorAll('a[href]')].map(a => ({ url: a.href, text: a.innerText.trim().slice(0, 200) })),
+        scripts: [...document.querySelectorAll('script[src]')].map(s => s.src) }));
+      observed = observedProviderUrls(provider, [...result.scripts, ...page.frames().map(f => f.url())]);
+      if (observed.length || Date.now() >= deadline) break;
+      await delay(1000);
+    } while (true);
+    const record = { ...result, finalUrl, retrievedAt: new Date().toISOString(), sourceSha256: sha(result.text), observedProviderUrls: observed };
+    await fs.writeFile(path.join(directory, `page-${sha(provider.website).slice(0,12)}-${readCount}.json`), JSON.stringify(record), {mode:0o600});
+    return record;
   }
   const stores = structuredClone(provider.customers), proofs = [], seen = new Set(stores.map(s => publicHost(s.website)));
   try {
     for (const store of stores) {
-      const observed = await read(store.website);
+      const observed = await read(store.website, true);
       if (!sameHost(observed.finalUrl, store.website) || !observed.observedProviderUrls.length) throw new WorkerError('research_unverified', `Submitted storefront deployment could not be verified: ${publicHost(store.website)}`);
       proofs.push({ providerWebsite: provider.website, storeWebsite: store.website, sourceUrl: observed.finalUrl,
         sourceSha256: observed.sourceSha256, sourceText: observed.text, retrievedAt: observed.retrievedAt,
@@ -53,7 +62,7 @@ export async function discoverStorefronts(provider, { browser, signal, directory
         if (seen.has(host) || excluded.test(host)) continue;
         seen.add(host);
         let observed;
-        try { observed = await read(link.url); } catch (error) { if (signal?.aborted) throw error; continue; }
+        try { observed = await read(link.url, true); } catch (error) { if (signal?.aborted) throw error; continue; }
         if (!sameHost(observed.finalUrl, link.url) || !observed.observedProviderUrls.length) continue;
         const name = observed.title.split(/[|–—]/)[0].trim().slice(0, 120) || host;
         const store = { name, website: new URL('/', observed.finalUrl).href };
