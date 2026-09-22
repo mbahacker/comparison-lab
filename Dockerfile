@@ -19,6 +19,9 @@ COPY --from=build --chown=lab:lab /app/public ./public
 COPY --from=build --chown=lab:lab /app/content ./content
 COPY --from=build --chown=lab:lab /app/rubric ./rubric
 COPY --from=build --chown=lab:lab /app/lib/server ./lib/server
+COPY --from=build --chown=lab:lab /app/lib/policy-study.ts ./lib/policy-study.ts
+# The operator CLI runs source TypeScript, outside Next's bundled server modules.
+COPY --from=build --chown=lab:lab /app/node_modules/zod ./node_modules/zod
 COPY --from=build --chown=lab:lab /app/worker/protocol.mjs /app/worker/scoring.mjs /app/worker/reuse.mjs /app/worker/authorship.mjs /app/worker/evidence.mjs ./worker/
 USER lab
 EXPOSE 3100

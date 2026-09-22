@@ -13,6 +13,12 @@
     "typecheck": "tsc --noEmit",
     "test": "node --experimental-strip-types --test tests/*.test.*",
     "worker": "node worker/index.mjs",
+    "benchmark:plan": "node benchmark/plan.mjs",
+    "benchmark:reference": "node benchmark/reference.mjs",
+    "benchmark:aggregate": "node benchmark/aggregate.mjs",
+    "benchmark:report": "node benchmark/report.mjs",
+    "benchmark:verify-report": "node benchmark/verify-report.mjs",
+    "benchmark:verify": "node benchmark/verify.mjs",
     "admin": "node --experimental-strip-types lib/server/admin.ts",
     "mailer": "node --experimental-strip-types lib/server/mail-daemon.ts"
   },

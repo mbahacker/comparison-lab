@@ -45,6 +45,7 @@
     "examples",
     "worker",
     "build",
-    "db"
+    "db",
+    "data"
   ]
 }

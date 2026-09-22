@@ -1,10 +1,10 @@
 "use client";
-import { FormEvent, ReactNode, useCallback, useEffect, useRef, useState } from "react";
+import { ReactNode, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ArrowRight, Check, LockKeyhole, Mail } from "lucide-react";
-import { api, date, post, ReportSummary, score } from "@/lib/client";
+import { ArrowLeft, ArrowRight, Check, LockKeyhole } from "lucide-react";
+import { api, date, ReportSummary, score } from "@/lib/client";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { ReportEmailVerification } from "./report-email-verification";
 import { ShareReportButton } from "@/components/lab/share-report";
 
 export function ReportAccess({ slug, initialReport, children }: { slug: string; initialReport?: ReportSummary; children: (onVerificationRequired: () => void) => ReactNode }) {
@@ -52,26 +52,4 @@ export function ReportAccess({ slug, initialReport, children }: { slug: string; 
     <p className="private-note">View or download activity and your verified email are shared privately with the Alhena team. Your email is never included in the report. <Link href="/privacy">Privacy details</Link>.</p>
     <Link href="/methodology" className="text-link">Read the published rubric <ArrowRight size={16} /></Link>
   </main>;
-}
-
-function ReportEmailVerification({ onVerified }: { onVerified: () => void }) {
-  const [email,setEmail] = useState(""), [code,setCode] = useState(""), [sent,setSent] = useState(false), [busy,setBusy] = useState(false), [error,setError] = useState(""), [notice,setNotice] = useState("");
-  async function send(event?: FormEvent) {
-    event?.preventDefault(); setBusy(true); setError("");
-    try { const result = await post<{message:string}>("/auth/start", {email,purpose:"report"}); setCode(""); setSent(true); setNotice(result.message); }
-    catch (e) {setError(e instanceof Error ? e.message : "Please try again.");} finally {setBusy(false);}
-  }
-  async function verify(event: FormEvent) {
-    event.preventDefault(); setBusy(true); setError("");
-    try {await post("/auth/verify",{email,code}); onVerified();}
-    catch(e) {setError(e instanceof Error ? e.message : "Please try again.");} finally {setBusy(false);}
-  }
-  return <form className="report-email-form" onSubmit={sent ? verify : send} aria-label="Verify email for detailed report">
-    <Mail size={23}/><h3>{sent ? "Check your inbox" : "Unlock the detailed report"}</h3>
-    {error && <p className="error-box" role="alert">{error}</p>}{notice && <p className="notice" role="status">{notice}</p>}
-    {sent ? <><p className="muted">Enter the code sent to {email}. It expires in ten minutes.</p><label className="field">Six-digit code<Input autoFocus aria-label="Six-digit verification code" autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required disabled={busy} value={code} onChange={e=>setCode(e.target.value.replace(/\D/g,""))}/></label></> : <label className="field">Work email<Input autoFocus type="email" autoComplete="email" maxLength={254} required disabled={busy} value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@company.com"/></label>}
-    <Button type="submit" disabled={busy || (sent && code.length !== 6)}>{busy ? "Please wait…" : sent ? "Verify & view report" : "Send verification code"}</Button>
-    {sent && <div className="form-secondary-actions"><button type="button" disabled={busy} onClick={()=>send()}>Resend code</button><button type="button" disabled={busy} onClick={()=>{setSent(false);setCode("");setNotice("");setError("");}}>Use another email</button></div>}
-    <p className="private-note">Alhena receives your email and the report you access. No marketing signup is required.</p>
-  </form>;
 }
