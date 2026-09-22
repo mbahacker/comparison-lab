@@ -18,6 +18,7 @@ const cookie = 'comparison_lab_session=fixture-session';
 db().prepare('INSERT INTO users(id,email,name,verified_at,created_at) VALUES(?,?,?,?,?)').run('reader','reader@business.example','Reader',new Date(now).toISOString(),new Date(now).toISOString());
 db().prepare('INSERT INTO sessions(token_hash,user_id,expires_at) VALUES(?,?,?)').run(hash('fixture-session'),'reader',now+100*86_400_000);
 async function call(route:string, body?:unknown, worker=false) {
+  if (body && ['tools/requests','tools/reuse/preview','requests','reuse/preview'].includes(route)) body = { ...(body as Record<string, unknown>), protocol: 'quality-pilot-v1' };
   const headers:Record<string,string> = { origin:process.env.APP_URL!, cookie };
   if(body!==undefined)headers['content-type']='application/json';
   if(worker)headers.authorization=`Bearer ${process.env.WORKER_SECRET}`;

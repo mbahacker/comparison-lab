@@ -38,7 +38,7 @@ export function db() {
       status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
       reviewed_at TEXT, review_note TEXT, review_token_hash TEXT NOT NULL UNIQUE,
       review_expires_at INTEGER NOT NULL, review_decision TEXT, report_slug TEXT, error TEXT,
-      notes TEXT, consent_at TEXT, attribution_confirmed_at TEXT
+      notes TEXT, consent_at TEXT, attribution_confirmed_at TEXT, protocol_json TEXT
     );
     CREATE INDEX IF NOT EXISTS requests_user ON requests(user_id, created_at);
     CREATE TABLE IF NOT EXISTS jobs (
@@ -52,6 +52,17 @@ export function db() {
       slug TEXT PRIMARY KEY, job_id TEXT UNIQUE REFERENCES jobs(id), title TEXT NOT NULL,
       summary_json TEXT NOT NULL, evidence_path TEXT NOT NULL, evidence_sha256 TEXT NOT NULL,
       published_at TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS preparation_jobs (
+      id TEXT PRIMARY KEY, request_id TEXT NOT NULL UNIQUE REFERENCES requests(id), state TEXT NOT NULL,
+      attempt INTEGER NOT NULL DEFAULT 0, fencing_token INTEGER NOT NULL DEFAULT 0,
+      lease_token_hash TEXT, lease_expires_at INTEGER, heartbeat_at INTEGER,
+      available_at INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, error TEXT,
+      completion_hash TEXT, completion_token_hash TEXT
+    );
+    CREATE TABLE IF NOT EXISTS policy_releases (
+      slug TEXT PRIMARY KEY, manifest_json TEXT NOT NULL, source_path TEXT,
+      source_sha256 TEXT, request_id TEXT, generation_key TEXT UNIQUE
     );
     CREATE TABLE IF NOT EXISTS report_access (
       user_id TEXT NOT NULL REFERENCES users(id), report_slug TEXT NOT NULL,
@@ -71,7 +82,7 @@ export function db() {
   connection.exec('BEGIN IMMEDIATE');
   try {
     const requestColumns = new Set((connection.prepare('PRAGMA table_info(requests)').all() as { name: string }[]).map(column => column.name));
-    for (const column of ['notes', 'consent_at', 'attribution_confirmed_at', 'tool_id', 'comparisons_json']) {
+    for (const column of ['notes', 'consent_at', 'attribution_confirmed_at', 'tool_id', 'comparisons_json', 'protocol_json']) {
       if (!requestColumns.has(column)) connection.exec(`ALTER TABLE requests ADD COLUMN ${column} TEXT`);
     }
     const jobColumns = new Set((connection.prepare('PRAGMA table_info(jobs)').all() as { name: string }[]).map(column => column.name));

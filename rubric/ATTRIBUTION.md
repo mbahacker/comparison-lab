@@ -7,7 +7,7 @@ The evaluation rubric and fixed questions were published by **Gorgias** in `gorg
 - [Published scoring source](https://github.com/gorgias/ai-agent-benchmark/blob/19b1420d2520d48baa52be81ac33fc4b9bd0ff8b/runner/eval-score.js)
 - [Published question pools](https://github.com/gorgias/ai-agent-benchmark/blob/19b1420d2520d48baa52be81ac33fc4b9bd0ff8b/runner/pools.js)
 
-`criteria.json` and `questions.json` are declarative benchmark material transcribed from the study evidence supplied by the repository owner. Source attribution is retained. The support `no_deflect` gate is explicitly represented for `s_answered`, `s_outcome`, and `s_no_deflect`, matching the pinned scorer. This does not change any score in the original report.
+`criteria.json`, `questions.json`, and `full-questions.json` are declarative benchmark material. The full question file records its pinned `runner/pools.js` source hash. `worker/policy-quality-spec.mjs` preserves the published quality judge schema, check IDs and instructions with attribution; it is not covered by an application-code license. Source attribution is retained. The support `no_deflect` gate is explicitly represented for `s_answered`, `s_outcome`, and `s_no_deflect`, matching the pinned scorer. This does not change any score in the original report.
 
 At implementation, the pinned GitHub tree had no `LICENSE`, `COPYING`, or `NOTICE` file, and GitHub's license endpoint returned 404. No permissive license is asserted for the upstream materials. This repository's application-code license, if any, does not relicense the rubric, questions, third-party transcripts, or fetched upstream files. Attribution alone is not a grant of copyright permission.
 

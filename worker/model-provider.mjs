@@ -30,10 +30,12 @@ export function validateModelStartup(env = process.env) {
   return { provider: configuration.provider, judgeModel: env.JUDGE_MODEL, auditorModel: env.AUDITOR_MODEL };
 }
 
-export async function providerStructuredResponse({ instructions, input, schema, model, provider, signal, fetchImpl = fetch }) {
+export async function providerStructuredResponse({ instructions, input, schema, model, provider, executionProfile, effort, maxOutputTokens, timeoutMs, signal, fetchImpl }) {
   const configuration = modelConfiguration({ provider: provider ?? process.env.MODEL_PROVIDER });
   if (typeof model !== 'string' || !model.trim()) throw new WorkerError('model_configuration', 'An explicit evaluator model ID is required');
-  if (configuration.provider === 'claude-cli') return claudeStructuredResponse({ instructions, input, schema, model, signal, fetchImpl });
+  if (configuration.provider === 'claude-cli') return claudeStructuredResponse({ instructions, input, schema, model, executionProfile, effort, maxOutputTokens, timeoutMs, signal, fetchImpl });
+  if ([executionProfile, effort, maxOutputTokens, timeoutMs].some(value => value !== undefined)) throw new WorkerError('model_configuration', 'Explicit policy-resolution execution is supported only by the isolated Claude judge');
+  const call = fetchImpl || fetch;
   const isAnthropic = configuration.provider === 'anthropic';
   const headers = isAnthropic
     ? { 'x-api-key': configuration.key, 'anthropic-version': '2023-06-01', 'Content-Type': 'application/json' }
@@ -41,7 +43,7 @@ export async function providerStructuredResponse({ instructions, input, schema, 
   const payload = isAnthropic
     ? { model, max_tokens: 10000, system: instructions, messages: [{ role: 'user', content: JSON.stringify(input) }], output_config: { format: { type: 'json_schema', schema } } }
     : { model, store: false, instructions, input: JSON.stringify(input), max_output_tokens: 10000, text: { format: { type: 'json_schema', name: 'criterion_verdict', strict: true, schema } } };
-  const response = await trustedTransport(() => fetchImpl(configuration.endpoint, {
+  const response = await trustedTransport(() => call(configuration.endpoint, {
     method: 'POST', redirect: 'error', headers,
     signal: AbortSignal.any([AbortSignal.timeout(180000), ...(signal ? [signal] : [])]),
     body: JSON.stringify(payload),

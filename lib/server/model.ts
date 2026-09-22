@@ -7,6 +7,7 @@ export type ComparisonRequest = {
   updatedAt: string; reviewedAt: string | null; reviewNote: string | null;
   reportSlug: string | null; error: string | null; notes: string | null;
   kind?: 'tool' | 'comparison'; toolId?: string | null; comparisons?: Row[];
+  protocol?: string; protocolSha256?: string; reportPath?: string | null; limits?: Row;
 };
 export type Row = Record<string, any>;
 export class ApiError extends Error {

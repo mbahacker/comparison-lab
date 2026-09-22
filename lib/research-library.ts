@@ -38,7 +38,7 @@ function lane(value: PolicyLaneResult): PolicyLaneResult {
 /** The server supplies approved summaries and its existing normalized toolId function. */
 export function projectResearchTools(studies: readonly PolicyStudySummary[], identifyTool: (website: string) => string): ResearchTool[] {
   const selected = new Map<string, ResearchTool>();
-  const compatible = studies.filter(study => study.protocol === 'policy-resolution-v1' && study.method.status === 'final');
+  const compatible = studies.filter(study => study.protocol === 'policy-resolution-v1' && study.method.status === 'final' && !study.derivedFrom);
   for (const study of [...compatible].sort(compareResearchStudies)) {
     const seen = new Set<string>();
     for (const provider of study.providers) {

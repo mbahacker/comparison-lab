@@ -1,3 +1,4 @@
+import manifest from '../rubric/upstream-manifest.json' with { type: 'json' };
 // Fetch, pin and verify reference modules. These files remain outside the public repository.
 import fs from 'node:fs/promises';
 import path from 'node:path';
@@ -6,9 +7,9 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { WorkerError } from './protocol.mjs';
 
 export const sha256 = value => createHash('sha256').update(value).digest('hex');
-export const MANIFEST = JSON.parse(await fs.readFile(new URL('../rubric/upstream-manifest.json', import.meta.url), 'utf8'));
-export async function loadUpstream(cache = process.env.RUBRIC_CACHE_DIR || new URL('./.cache/upstream', import.meta.url).pathname) {
-  const directory = path.resolve(cache, MANIFEST.commit);
+export const MANIFEST = manifest;
+export async function loadUpstream(cache = process.env.RUBRIC_CACHE_DIR || path.resolve('worker/.cache/upstream')) {
+  const directory = path.resolve(/* turbopackIgnore: true */ cache, MANIFEST.commit);
   await fs.mkdir(directory, { recursive: true, mode: 0o700 });
   for (const [name, ref] of Object.entries(MANIFEST.files)) {
     const dest = path.join(directory, name);
@@ -24,7 +25,7 @@ export async function loadUpstream(cache = process.env.RUBRIC_CACHE_DIR || new U
     if (sha256(await fs.readFile(dest)) !== ref.sha256) throw new WorkerError('rubric_integrity', `Cached reference hash mismatch: ${name}`);
   }
   await fs.writeFile(path.join(directory, 'package.json'), '{"type":"module","private":true}\n', { mode: 0o600 });
-  const imported = await Promise.all(['eval-score.js', 'eval-signals.js', 'reply-clean.js', 'message-style.js', 'classify.js'].map(n => import(pathToFileURL(path.join(directory, n)).href)));
+  const imported = await Promise.all(['eval-score.js', 'eval-signals.js', 'reply-clean.js', 'message-style.js', 'classify.js'].map(n => import(/* webpackIgnore: true */ /* turbopackIgnore: true */ pathToFileURL(path.join(/* turbopackIgnore: true */ directory, n)).href)));
   return { ...Object.assign({}, ...imported), rubricText: await fs.readFile(path.join(directory, 'eval-rubric.md'), 'utf8'), manifest: MANIFEST };
 }
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

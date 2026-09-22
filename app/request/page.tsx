@@ -1,5 +1,5 @@
 import { RequestFlow } from "@/components/lab/request-flow";
-export const metadata = { title: "Analyze your tool", description: "Request a reviewed three-storefront quality evaluation. This submission uses quality-pilot-v1 and does not automatically run the broader policy-resolution study." };
+export const metadata = { title: "Analyze your tool", description: "Suggest three customers; we research two more for a five-storefront evaluation of policy-compliant resolution, answer quality and speed. Validated results join the current research library and compatible comparisons." };
 export default async function Page({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const params = await searchParams;
   const name = typeof params.provider === "string" ? params.provider.trim().slice(0, 100) : "";

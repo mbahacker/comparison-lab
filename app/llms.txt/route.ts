@@ -37,7 +37,7 @@ ${research.studies.map(s => `- [${label(s.title)}](${publicUrl(`/studies/${s.slu
 
 ## Historical quality pilot and submissions
 
-quality-pilot-v1 measures quality only using the 26 pinned criteria: three storefronts, six conversations and two fixed question themes per tool. Its original scores are preserved in the historical archive and are not the current study scores. The Analyze your tool form currently requests this quality-only evaluation; it does not automatically run a policy-resolution study. Compatible pilot evidence can be reused within 30 days of its original capture; publication does not refresh that clock.
+quality-pilot-v1 measures quality only using the 26 pinned criteria: three storefronts, six conversations and two fixed question themes per tool. Its original scores are preserved in the historical archive and are not the current study scores. New Analyze your tool submissions use policy-resolution-v1: the user supplies three customer storefronts, research verifies two more, and operator approval authorizes the five-storefront evaluation and automatic publication after validation. Existing pilot jobs retain their frozen scope. Compatible pilot evidence can be reused within 30 days of its original capture; publication does not refresh that clock.
 
 - [Historical quality archive](${publicUrl('/#archive')})
 - [Original quality-pilot method and criteria](${publicUrl('/methodology/quality-pilot-v1')})

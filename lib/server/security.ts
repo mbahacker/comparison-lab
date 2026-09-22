@@ -59,14 +59,14 @@ export function publicWebsite(value: unknown) {
   return url.href;
 }
 
-export function providersInput(value: unknown, count: 1 | 2 = 2): Provider[] {
+export function providersInput(value: unknown, count: 1 | 2 = 2, storesPerProvider: 3 | 5 = 3): Provider[] {
   if (!Array.isArray(value) || value.length !== count) throw new ApiError(400, count === 1 ? 'Add exactly one tool to evaluate.' : 'Add exactly two companies to compare.');
   const seenStores = new Set<string>();
   const providers = value.map((p, index) => {
     if (!p || typeof p !== 'object') throw new ApiError(400, 'Each company needs a name and website.');
     const name = text(p.name, `Company ${index + 1} name`, 2, 120);
     const website = publicWebsite(p.website);
-    if (!Array.isArray(p.customers) || p.customers.length !== 3) throw new ApiError(400, 'Add exactly three customer storefronts for each company.');
+    if (!Array.isArray(p.customers) || p.customers.length !== storesPerProvider) throw new ApiError(400, `Add exactly ${storesPerProvider === 5 ? 'five' : 'three'} customer storefronts for each company.`);
     const customerNames = new Set<string>();
     const customers = p.customers.map((customer: Row) => {
       if (!customer || typeof customer !== 'object') throw new ApiError(400, 'Each customer needs a name and website.');

@@ -3,6 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
+import { executionSettings, executionMetadata } from '../worker/execution-profile.mjs';
 
 export const CLI_VERSION = '2.1.198';
 export class JudgeError extends Error {
@@ -13,23 +14,34 @@ export function validateSchema(value, schema) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw new JudgeError('invalid_structured_output');
     if (schema.additionalProperties !== false || Object.keys(value).some(key => !Object.hasOwn(schema.properties, key)) || schema.required.some(key => !Object.hasOwn(value, key))) throw new JudgeError('invalid_structured_output');
     for (const [key, field] of Object.entries(schema.properties)) if (Object.hasOwn(value, key)) validateSchema(value[key], field);
-  } else if (typeof value !== schema.type || (schema.enum && !schema.enum.includes(value))) throw new JudgeError('invalid_structured_output');
+  } else if (schema.type === 'array') {
+    if (!Array.isArray(value) || value.length < (schema.minItems ?? 0) || value.length > (schema.maxItems ?? Infinity)) throw new JudgeError('invalid_structured_output');
+    for (const item of value) validateSchema(item, schema.items);
+  } else if (schema.type === 'integer') {
+    if (!Number.isInteger(value) || value < (schema.minimum ?? -Infinity) || value > (schema.maximum ?? Infinity)) throw new JudgeError('invalid_structured_output');
+  } else if (!['string', 'boolean', 'number'].includes(schema.type) || typeof value !== schema.type || (schema.type === 'number' && !Number.isFinite(value)) || (schema.enum && !schema.enum.includes(value))
+    || (typeof value === 'string' && (value.length < (schema.minLength ?? 0) || value.length > (schema.maxLength ?? Infinity)))) throw new JudgeError('invalid_structured_output');
 }
-export function cliArguments({ instructions, schema, model }, sessionId) {
+function settingsFor(request) {
+  try { return executionSettings(request); } catch { throw new JudgeError('invalid_execution_profile', 400); }
+}
+export function cliArguments(request, sessionId) {
+  const { instructions, schema, model } = request, settings = settingsFor(request);
   return ['--print', '--output-format', 'json', '--model', model,
     '--system-prompt', instructions, '--json-schema', JSON.stringify(schema),
     '--tools', '', '--disallowedTools', 'mcp__*', '--strict-mcp-config', '--mcp-config', '{"mcpServers":{}}',
     '--setting-sources', '', '--settings', '{"disableAllHooks":true,"autoMemoryEnabled":false}',
     '--disable-slash-commands', '--no-chrome', '--no-session-persistence', '--permission-mode', 'dontAsk',
-    '--session-id', sessionId, '--max-turns', '2'];
+    '--session-id', sessionId, '--max-turns', '2', ...(settings.effort ? ['--effort', settings.effort] : [])];
 }
-export function cliEnvironment(token, directory) {
+export function cliEnvironment(token, directory, maxOutputTokens = 10000) {
+  if (![10000, 16384].includes(maxOutputTokens)) throw new JudgeError('invalid_execution_profile', 400);
   // Do not inherit API keys, endpoint overrides, host hooks, proxy credentials or Jarvis settings.
   return { PATH: '/usr/local/bin:/usr/bin:/bin', HOME: directory, TMPDIR: directory,
     CLAUDE_CONFIG_DIR: path.join(directory, '.claude'), CLAUDE_CODE_OAUTH_TOKEN: token,
     CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: '1', CLAUDE_CODE_DISABLE_OFFICIAL_MARKETPLACE_AUTOINSTALL: '1',
     DISABLE_AUTOUPDATER: '1', DISABLE_TELEMETRY: '1', DISABLE_ERROR_REPORTING: '1',
-    CLAUDE_CODE_DISABLE_FILE_CHECKPOINTING: '1', CLAUDE_CODE_MAX_OUTPUT_TOKENS: '10000',
+    CLAUDE_CODE_DISABLE_FILE_CHECKPOINTING: '1', CLAUDE_CODE_MAX_OUTPUT_TOKENS: String(maxOutputTokens),
     CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1', LANG: 'C.UTF-8' };
 }
 export function decodeResult(output, schema, requestedModel, sessionId) {
@@ -44,8 +56,11 @@ export function decodeResult(output, schema, requestedModel, sessionId) {
     model: models[0], requested_model: requestedModel, response_id: result.session_id,
     usage: result.usage, created_at: new Date().toISOString() } };
 }
-export async function runClaude(request, { token, signal, spawnImpl = spawn, timeoutMs = 180000, maxOutputBytes = 300000, tempRoot = os.tmpdir(), binary = '/usr/local/bin/claude' } = {}) {
+export async function runClaude(request, { token, signal, spawnImpl = spawn, timeoutMs, maxOutputBytes = 300000, tempRoot = os.tmpdir(), binary = '/usr/local/bin/claude' } = {}) {
   if (typeof token !== 'string' || !token.trim()) throw new JudgeError('judge_auth_missing', 503);
+  const settings = settingsFor(request);
+  const executionTimeout = timeoutMs ?? settings.timeoutMs;
+  if (!Number.isInteger(executionTimeout) || executionTimeout <= 0 || executionTimeout > settings.timeoutMs) throw new JudgeError('invalid_execution_profile', 400);
   const directory = await fs.mkdtemp(path.join(tempRoot, 'comparison-judge-'));
   await fs.chmod(directory, 0o700);
   const sessionId = randomUUID();
@@ -64,7 +79,7 @@ export async function runClaude(request, { token, signal, spawnImpl = spawn, tim
         // clearing only the escalation timer would leave detached work running.
         killGroup('SIGKILL'); clearTimeout(timer); clearTimeout(killTimer);
         signal?.removeEventListener('abort', abort);
-        error ? reject(error) : resolve(result);
+        if (error) reject(error); else resolve(result);
       };
       const stop = error => {
         if (failure || settled) return; failure = error;
@@ -72,9 +87,9 @@ export async function runClaude(request, { token, signal, spawnImpl = spawn, tim
         killTimer = setTimeout(() => killGroup('SIGKILL'), 1000);
       };
       const abort = () => stop(new JudgeError('judge_cancelled', 499));
-      try { child = spawnImpl(binary, cliArguments(request, sessionId), { cwd: directory, env: cliEnvironment(token, directory), stdio: ['pipe', 'pipe', 'pipe'], detached: true, shell: false }); }
+      try { child = spawnImpl(binary, cliArguments(request, sessionId), { cwd: directory, env: cliEnvironment(token, directory, settings.maxOutputTokens), stdio: ['pipe', 'pipe', 'pipe'], detached: true, shell: false }); }
       catch { finish(new JudgeError('cli_spawn_failed', 503)); return; }
-      timer = setTimeout(() => stop(new JudgeError('judge_timeout', 504)), timeoutMs);
+      timer = setTimeout(() => stop(new JudgeError('judge_timeout', 504)), executionTimeout);
       signal?.addEventListener('abort', abort, { once: true });
       if (signal?.aborted) abort();
       child.on('error', () => finish(new JudgeError('cli_spawn_failed', 503)));
@@ -85,7 +100,11 @@ export async function runClaude(request, { token, signal, spawnImpl = spawn, tim
       child.on('close', code => {
         if (failure) return finish(failure);
         if (code !== 0) return finish(new JudgeError('cli_failed'));
-        try { finish(null, decodeResult(Buffer.concat(output).toString('utf8'), request.schema, request.model, sessionId)); }
+        try {
+          const result = decodeResult(Buffer.concat(output).toString('utf8'), request.schema, request.model, sessionId);
+          result.metadata = { ...result.metadata, ...executionMetadata({ ...settings, timeoutMs: executionTimeout }) };
+          finish(null, result);
+        }
         catch (error) { finish(error instanceof JudgeError ? error : new JudgeError('invalid_cli_result')); }
       });
       child.stdin.end(JSON.stringify(request.input));

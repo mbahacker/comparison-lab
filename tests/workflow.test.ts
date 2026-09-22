@@ -20,6 +20,7 @@ process.env.WORKER_SECRET = 'test-worker-secret-with-more-than-32-characters';
 after(() => { closeDb(); fs.rmSync(directory, { recursive: true, force: true }); });
 
 async function call(route: string, options: { method?: string; body?: any; cookie?: string; worker?: boolean; origin?: string } = {}) {
+  if (options.body && ['requests','reuse/preview'].includes(route)) options.body = { ...options.body, protocol: 'quality-pilot-v1' };
   const headers: Record<string, string> = { origin: options.origin || process.env.APP_URL! };
   if (options.body !== undefined) headers['content-type'] = 'application/json';
   if (options.cookie) headers.cookie = options.cookie;

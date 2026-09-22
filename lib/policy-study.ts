@@ -30,6 +30,7 @@ export type PolicyStudySummary = {
     shopping: PolicyLaneResult; support: PolicyLaneResult;
     overallComposite: StudyMetric;
   }[];
+  derivedFrom?: { slug: string; sha256: string }[];
   limitations: string[];
   audit: { description: string; limitations: string[] };
 };

@@ -1,0 +1,12 @@
+[
+  {
+    "id": "sierra-webchat-contact-v1",
+    "providerDomain": "sierra.ai",
+    "launcher": "[data-sierra-chat='modal']",
+    "composer": "textarea[aria-label='Add new message']",
+    "transcript": "[aria-label='Chat messages']",
+    "assistantMessages": "li.role-assistant",
+    "hostname": "olukai.com",
+    "vendor": "Sierra"
+  }
+]

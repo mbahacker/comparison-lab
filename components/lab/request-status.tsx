@@ -8,6 +8,7 @@ import type { AnalysisRequest } from "@/lib/reuse-client";
 import { ComparisonDetails } from "./request-flow";
 
 const explanation: Record<string, string> = {
+  researching: "We are verifying the submitted deployments and researching two more storefronts. All five will be reviewed before evaluation starts.",
   pending_review: "Your request is waiting for review. We’ll email you after a decision.",
   queued: "Your request has been approved and is queued for evaluation.",
   running: "The evaluation reuses eligible published evidence and captures, judges and audits any new conversations. We’ll email you when the completed analysis is published.",
@@ -37,7 +38,7 @@ export function RequestStatus({ id }: { id: string }) {
   }, [load]);
   const isTool = request?.kind === "tool" || request?.providers.length === 1;
   const index = request?.status === "published" ? 4 : ["pending_review", "rejected"].includes(request?.status || "") ? 1 : request?.status === "queued" ? 2 : 3;
-  const target = request?.toolId ? `/tools/${encodeURIComponent(request.toolId)}` : request?.reportSlug ? `/reports/${encodeURIComponent(request.reportSlug)}` : null;
+  const target = request?.toolId ? `/tools/${encodeURIComponent(request.toolId)}` : request?.reportSlug ? request.reportPath || `/reports/${encodeURIComponent(request.reportSlug)}` : null;
   return <main id="main" className="shell prose-page">
     <Link href="/" className="back-link"><ArrowLeft size={16} />Tool library</Link>
     <p className="eyebrow">{isTool ? "YOUR TOOL ANALYSIS" : "YOUR REQUEST"}</p>
@@ -58,7 +59,7 @@ export function RequestStatus({ id }: { id: string }) {
         {target && <Link className="button primary" href={target}>{request.toolId ? "Explore the tool analysis" : "Explore the report"} <ArrowRight size={16} /></Link>}
         {request.status === "published" && !!request.comparisons?.length && <div className="request-scope">
           <strong>Available comparison reports</strong>
-          <ul className="mt-3 space-y-2">{request.comparisons.map(report => <li key={report.slug}><Link className="text-link" href={`/reports/${encodeURIComponent(report.slug)}`}>{report.title} <ArrowRight size={14} /></Link></li>)}</ul>
+          <ul className="mt-3 space-y-2">{request.comparisons.map(report => <li key={report.slug}><Link className="text-link" href={report.path || `/reports/${encodeURIComponent(report.slug)}`}>{report.title} <ArrowRight size={14} /></Link></li>)}</ul>
         </div>}
         {isTool && <p className="private-note">Comparison reports use compatible tool analyses captured within the last 30 days. Other tools are not retested automatically; refreshing older evidence requires a new approved request.</p>}
         <ComparisonDetails vendors={request.providers} />

@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { z } from 'zod';
 import { POLICY_PROTOCOL, type PolicyStudySummary } from '../policy-study.ts';
+import { db } from './db.ts';
 import { config } from './config.ts';
 import { ApiError } from './model.ts';
 import { hash } from './security.ts';
@@ -28,6 +29,7 @@ const summarySchema = z.object({
   method: z.object({ status: z.literal('final'), sha256: sha, sourceCommit: z.string().regex(/^[a-f0-9]{40}$/), differences: z.array(text).min(1) }).strict(),
   sample: z.object({ plannedCoreContexts: count.positive(), capturedCoreContexts: count.positive(), guardrailContexts: count, judgedCoreContexts: count, pcrDecisions: count.positive(), auditedPcrDecisions: count.positive() }).strict(),
   providers: z.array(z.object({ id: slug, name: text, website, registeredStores: count.positive(), shopping: lane, support: lane, overallComposite: metric }).strict()).min(1),
+  derivedFrom: z.array(z.object({ slug, sha256: sha }).strict()).min(2).optional(),
   limitations: z.array(text).min(1), audit: z.object({ description: text, limitations: z.array(text) }).strict(),
 }).strict();
 const pin = z.object({ path: z.string().min(1), sha256: sha }).strict();
@@ -36,7 +38,7 @@ const manifestSchema = z.object({
   status: z.literal('approved'),
   summary: pin, evidence: pin, html: pin.optional(), bundle: pin.optional(), method: pin, validation: pin,
 }).strict();
-const validationSchema = z.object({
+const manualValidationSchema = z.object({
   schema: z.literal('alhena-research-lab/policy-publication-validation-v1'),
   protocol: z.literal(POLICY_PROTOCOL), status: z.literal('complete'), approvedForPublication: z.literal(true),
   summarySha256: sha, evidenceSha256: sha, methodSha256: sha,
@@ -47,6 +49,16 @@ const validationSchema = z.object({
   provenanceReviewed: z.literal(true), publicSummaryReviewed: z.literal(true),
   evidencePrivacyReviewed: z.literal(true), thirdPartyExcerptsReviewed: z.literal(true), approvedAt: date,
 }).strict();
+const automaticValidationSchema = z.object({
+  schema: z.literal('alhena-research-lab/automatic-policy-validation-v1'),
+  protocol: z.literal(POLICY_PROTOCOL), status: z.literal('complete'), approvedForPublication: z.literal(true),
+  approvalBasis: z.literal('operator-approved-request-and-server-validation'),
+  summarySha256: sha, evidenceSha256: sha, methodSha256: sha, htmlSha256: sha.optional(), bundleSha256: sha.optional(),
+  plannedCoreContexts: count.positive(), capturedCoreContexts: count.positive(), pcrDecisions: count.positive(), auditedPcrDecisions: count.positive(),
+  validation: z.literal('capture-lineage-blind-audit-arithmetic-privacy-v1'),
+  sourceEvidenceSha256: sha, approvedAt: date,
+}).strict();
+const validationSchema = z.union([manualValidationSchema, automaticValidationSchema]);
 const catalogSchema = z.object({ schema: z.literal('alhena-research-lab/policy-catalog-v1'), studies: z.array(pin) }).strict();
 
 function directory() { return path.join(config().dataDir, 'published-studies'); }
@@ -93,7 +105,14 @@ export function readPolicyCatalog(root: string) {
   if (new Set(rows.map(r => r.summary.slug)).size !== rows.length) throw new Error('Duplicate published study.');
   return { catalog, releases: rows };
 }
-function releases() { return readPolicyCatalog(directory()).releases; }
+function releases() {
+  const manual = readPolicyCatalog(directory()).releases;
+  const automatic = (db().prepare('SELECT manifest_json FROM policy_releases ORDER BY slug').all() as {manifest_json: string}[])
+    .map(row => readPolicyRelease(directory(), JSON.parse(row.manifest_json)));
+  const rows = [...manual, ...automatic];
+  if (new Set(rows.map(row => row.summary.slug)).size !== rows.length) throw Error('Duplicate published study.');
+  return rows;
+}
 export function listPolicyStudies(): PolicyStudySummary[] { return releases().map(r => r.summary); }
 export function getPolicyStudy(slugValue: string) {
   if (!slug.safeParse(slugValue).success) throw new ApiError(404, 'Study not found.');

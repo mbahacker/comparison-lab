@@ -27,7 +27,7 @@ const quality = q => {
 };
 const iso = value => { if (typeof value !== 'string' || !Number.isFinite(Date.parse(value))) throw Error('Missing valid evidence date'); return new Date(value).toISOString(); };
 const hash = value => { if (!/^[a-f0-9]{64}$/.test(value || '')) throw Error('Missing verified content hash'); return value; };
-const publicProvenance = input => Object.fromEntries([
+const publicProvenance = input => input?.kind === 'automated-policy-v1' ? { kind: input.kind, ...Object.fromEntries(['protocolSnapshotSha256', 'capturesSha256', 'judgmentsSha256', 'policySourcesSha256', 'executionProfileSha256'].map(k => [k, hash(input[k])])) } : Object.fromEntries([
   ...['sourceStudySha256', 'studySpecSha256', 'originalScoresSha256', 'repairPlanSha256', 'repairRawManifestSha256', 'pcrCompletionSha256', 'qualityCompletionSha256', 'originalQualityReuseSha256'].map(k => [k, hash(input?.[k])]),
   ...(Object.hasOwn(input || {}, 'schedulingAmendmentSha256') ? [['schedulingAmendmentSha256', hash(input.schedulingAmendmentSha256)]] : []),
 ]);
@@ -85,6 +85,7 @@ export function projectPolicyStudy({ records, expectedContexts, providers, sourc
         originalFlaggedStop: t && { turn: t.turn, question: t.question, reply: t.reply, sourceActorLabel: t.sourceActorLabel, handoverHit: t.handoverHit } };
     }),
   } : null;
+  const automatic = provenance?.kind === 'automated-policy-v1';
   const dates = normalized.map(r => iso(r.capturedAt)).sort();
   const lane = (provider, name) => {
     const result = provider[name], coverage = result.coverage;
@@ -119,7 +120,7 @@ export function projectPolicyStudy({ records, expectedContexts, providers, sourc
     slug, title, description, publishedAt: iso(preparedAt), captureStartAt: dates[0], captureEndAt: dates.at(-1),
     commissionedBy: 'Alhena Research Lab',
     method: { status: 'final', sha256: methodSha256, sourceCommit,
-      differences: ['Replaces the source automation classifier with policy-compliant resolution.', 'Every eligible checkpoint receives two fresh blind judgments; attainment requires agreement and valid evidence.', `Cause-selected capture repairs retained: ${normalized.filter(r => r.correctedCapture).length}. The source study remains unchanged.`] },
+      differences: ['Replaces the source automation classifier with policy-compliant resolution.', 'Every eligible checkpoint receives two fresh blind judgments; attainment requires agreement and valid evidence.', automatic ? 'New automated captures use the frozen protocol; historical study scores remain unchanged.' : `Cause-selected capture repairs retained: ${normalized.filter(r => r.correctedCapture).length}. The source study remains unchanged.`] },
     sample: { plannedCoreContexts: expectedContexts.length, capturedCoreContexts: normalized.length, guardrailContexts: guardrails.length,
       judgedCoreContexts: aggregation.conversations.filter(r => r.score !== null).length,
       pcrDecisions: aggregation.conversations.reduce((n, r) => n + r.assessable, 0),
@@ -134,13 +135,13 @@ export function projectPolicyStudy({ records, expectedContexts, providers, sourc
     }),
     limitations: [
       'Alhena commissioned and operates this study. Selected storefront deployments do not establish a universal provider ranking or independent certification.',
-      'This methodology was developed after reviewing the original automation results, then frozen before the new policy-resolution judgments.',
+      automatic ? 'This evaluation used the previously published method, frozen before capture and judging.' : 'This methodology was developed after reviewing the original automation results, then frozen before the new policy-resolution judgments.',
       'The sessions were logged out. No real order, refund, account change or completed human resolution was independently verified.',
       'Unknown delivery or actor attribution remains unassessable. Unsent questions are not successes or failures. Conditional scores must be read with planned and assessed coverage.',
       ...limitations,
     ],
     audit: { description: 'Every assessed policy-resolution checkpoint receives a primary and a fresh blind audit. Both must award valid evidence-backed attainment. Attainment disagreements receive zero verified credit and remain visible.',
-      limitations: ['Provider names were masked where practicable; full anonymity is not claimed.', 'Retained original quality judgments have separate historical audit coverage. The repair-quality audit sees the primary quality verdicts and full captured replies; it is distinct from the blind policy-resolution audit.', ...auditLimitations] },
+      limitations: ['Provider names were masked where practicable; full anonymity is not claimed.', automatic ? 'Each new quality judgment has a separate adversarial audit. The quality audit sees the primary verdict; the policy-resolution audit does not.' : 'Retained original quality judgments have separate historical audit coverage. The repair-quality audit sees the primary quality verdicts and full captured replies; it is distinct from the blind policy-resolution audit.', ...auditLimitations] },
   };
   const evidence = {
     schema: 'alhena-research-lab/policy-study-evidence-v1', protocol: summary.protocol,
@@ -164,10 +165,10 @@ export function projectPolicyStudy({ records, expectedContexts, providers, sourc
     policySources: sources.map(s => ({ id: s.id, merchantId: s.merchantId, merchant: s.merchant, url: s.url, retrievedAt: s.retrievedAt,
       sha256: s.sha256, referenceSha256: s.referenceSha256, limitations: s.limitations })),
     guardrails: guardrails.map(g => ({ id: g.id, provider: g.provider, store: g.store, capturedAt: iso(g.capturedAt), rawSha256: hash(g.rawSha256),
-      provenance: 'Unchanged original guardrail capture; excluded from the policy-resolution composite.',
+      provenance: automatic ? 'Separate guardrail capture; excluded from the policy-resolution composite.' : 'Unchanged original guardrail capture; excluded from the policy-resolution composite.',
       exclusion: g.exclusion || null, quality: quality(g.quality),
       turns: g.turns.map(t => ({ turn: t.turn, question: t.question, reply: t.reply, unsent: t.unsent === true,
-        completeMs: t.completeMs ?? null, actor: t.actor, limitation: t.limitation })),
+        completeMs: t.completeMs ?? null, actor: t.actor, observationState: t.observationState || (t.unsent ? 'not_submitted' : 'unknown'), limitation: t.limitation })),
     })),
     repairSelections: publicRepairs,
     storefrontResults: aggregation.providers.flatMap(p => ['shopping', 'support'].flatMap(mode => p[mode].stores.map(s => ({ provider: p.name, mode, ...s })))),

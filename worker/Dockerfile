@@ -5,6 +5,7 @@ COPY worker/package*.json ./
 RUN npm ci --omit=dev && npx playwright install --with-deps chromium && chmod -R a+rX /opt/ms-playwright
 COPY worker/ ./
 COPY rubric/ /app/rubric/
+COPY benchmark/ /app/benchmark/
 RUN groupadd --gid 1001 evaluator && useradd --uid 1001 --gid evaluator --create-home evaluator \
     && mkdir -p /data /app/worker/.cache && chown -R evaluator:evaluator /data /app/worker/.cache
 USER evaluator

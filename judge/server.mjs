@@ -6,11 +6,38 @@ import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 import { verdictSchema } from '../worker/verdict-schema.mjs';
 import { CLI_VERSION, JudgeError, runClaude } from './cli.mjs';
+import { resultSchema } from '../benchmark/policy-judge.mjs';
+import { executionSettings, POLICY_TRANSPORT_TIMEOUT_MS } from '../worker/execution-profile.mjs';
+import { schemaFor, qualityAuditSchema } from '../worker/policy-quality-spec.mjs';
 
 const schemas = ['shopping', 'support'].flatMap(mode => [false, true].map(audit => JSON.stringify(verdictSchema(mode, audit))));
+const policyQualitySchemas = ['shopping', 'support'].flatMap(mode => [schemaFor(mode), qualityAuditSchema(mode)].map(schema => JSON.stringify(schema)));
 export function validateRequest(body, models) {
-  if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).sort().join(',') !== 'input,instructions,model,schema') throw new JudgeError('invalid_request', 400);
-  if (!models.includes(body.model) || typeof body.instructions !== 'string' || !body.instructions.trim() || body.instructions.length > 90000 || !body.input || typeof body.input !== 'object' || !schemas.includes(JSON.stringify(body.schema))) throw new JudgeError('invalid_request', 400);
+  if (!body || typeof body !== 'object' || Array.isArray(body)) throw new JudgeError('invalid_request', 400);
+  let settings;
+  try { settings = executionSettings(body); } catch { throw new JudgeError('invalid_request', 400); }
+  const keys = settings.explicit ? 'effort,executionProfile,input,instructions,maxOutputTokens,model,schema,timeoutMs' : 'input,instructions,model,schema';
+  if (Object.keys(body).sort().join(',') !== keys || !models.includes(body.model) || typeof body.instructions !== 'string' || !body.instructions.trim() || body.instructions.length > 90000 || !body.input || typeof body.input !== 'object' || Array.isArray(body.input)) throw new JudgeError('invalid_request', 400);
+  if (settings.explicit && body.model !== 'claude-opus-4-8') throw new JudgeError('invalid_request', 400);
+  if (schemas.includes(JSON.stringify(body.schema))) return settings;
+  if (!settings.explicit) throw new JudgeError('invalid_request', 400);
+  if (policyQualitySchemas.includes(JSON.stringify(body.schema))) return settings;
+  try {
+    const conversations = body.input.conversations;
+    if (!Array.isArray(conversations) || conversations.length < 1 || conversations.length > 3) throw Error();
+    const keys = new Set();
+    for (const c of conversations) {
+      if (!c || !/^[a-zA-Z0-9_-]{1,128}$/.test(c.key) || keys.has(c.key) || !Array.isArray(c.checkpoints) || c.checkpoints.length < 1 || c.checkpoints.length > 10) throw Error();
+      keys.add(c.key);
+      const turns = new Set();
+      for (const t of c.checkpoints) {
+        if (!Number.isInteger(t?.turn) || t.turn < 1 || t.turn > 10 || turns.has(t.turn)) throw Error();
+        turns.add(t.turn);
+      }
+    }
+    if (JSON.stringify(body.schema) !== JSON.stringify(resultSchema(body.input))) throw Error();
+  } catch { throw new JudgeError('invalid_request', 400); }
+  return settings;
 }
 export function createJudgeServer({ token, secret, models, run = runClaude }) {
   if (!token || typeof secret !== 'string' || secret.length < 32 || !models?.length || models.some(model => typeof model !== 'string' || !model.trim())) throw new JudgeError('judge_configuration', 503);
@@ -33,14 +60,14 @@ export function createJudgeServer({ token, secret, models, run = runClaude }) {
       for await (const chunk of req) { bytes += chunk.length; if (bytes > 500000) throw new JudgeError('request_too_large', 413); chunks.push(Buffer.from(chunk)); }
       clearTimeout(bodyTimer);
       let request; try { request = JSON.parse(Buffer.concat(chunks).toString('utf8')); } catch { throw new JudgeError('invalid_json', 400); }
-      validateRequest(request, models);
+      const settings = validateRequest(request, models);
       if (controller.signal.aborted) throw new JudgeError('judge_cancelled', 499);
-      const result = await run(request, { token, signal: controller.signal });
+      const result = await run(request, { token, signal: controller.signal, timeoutMs: settings.timeoutMs });
       send(200, result);
     } catch (error) { send(error instanceof JudgeError ? error.status : 500, { error: error instanceof JudgeError ? error.code : 'judge_failed' }); }
     finally { clearTimeout(bodyTimer); res.off('close', abort); req.off('aborted', abort); active = false; }
   });
-  server.requestTimeout = 200000; server.headersTimeout = 10000; server.keepAliveTimeout = 5000;
+  server.requestTimeout = POLICY_TRANSPORT_TIMEOUT_MS; server.headersTimeout = 10000; server.keepAliveTimeout = 5000;
   return server;
 }
 export async function main() {

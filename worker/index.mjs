@@ -1,3 +1,5 @@
+import { runPolicyJob } from './policy-runner.mjs';
+import { runPreparation } from './policy-discovery.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -16,7 +18,7 @@ export function apiClient({ baseUrl, workerKey, fetchImpl = fetch }) {
   const base = new URL(baseUrl);
   if (!['https:', 'http:'].includes(base.protocol) || !workerKey || workerKey.length < 32) throw new WorkerError('worker_configuration', 'API base URL and a worker key of at least 32 characters are required');
   return async (endpoint, data = {}) => {
-    const response = await trustedTransport(() => fetchImpl(new URL(`/api/worker/${endpoint}`, base), { method: 'POST', redirect: 'error', headers: { Authorization: `Bearer ${workerKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data), signal: AbortSignal.timeout(15000) }), { code: 'worker_api_transport' });
+    const response = await trustedTransport(() => fetchImpl(new URL(`/api/worker/${endpoint}`, base), { method: 'POST', redirect: 'error', headers: { Authorization: `Bearer ${workerKey}`, 'Content-Type': 'application/json' }, body: JSON.stringify(data), signal: AbortSignal.timeout(endpoint === 'complete' ? 180000 : 15000) }), { code: 'worker_api_transport' });
     if (!response.ok) {
       let detail = '';
       try { const body = await response.json(); if (typeof body.error === 'string') detail = ': ' + body.error.slice(0, 500); } catch { /* diagnostics are optional */ }
@@ -31,6 +33,7 @@ export function failureDetails(error, signal) {
     retryable: reason instanceof WorkerError && reason.retryable === true, message: reason?.message || 'Worker failed' };
 }
 export async function runJob(job, api, { rootDirectory = process.env.WORKER_DATA_DIR || './data', upstream, adapters = [], startProxy = startPublicProxy, launchBrowser = launchCaptureBrowser, capture = captureConversation, judge = judgeCapture, loadReference = loadUpstream } = {}) {
+  if (job.protocol?.id === 'policy-resolution-v1') return runPolicyJob(job, api, { rootDirectory, upstream, adapters, startProxy, launchBrowser, capture, loadReference });
   assertJob(job);
   const lease = { jobId: job.id, leaseToken: job.leaseToken, fencingToken: job.fencingToken };
   const control = new AbortController();
@@ -81,6 +84,8 @@ export async function main() {
   let stopped = false; process.on('SIGTERM', () => { stopped = true; }); process.on('SIGINT', () => { stopped = true; });
   while (!stopped) {
     try {
+      const prepared = await api('prepare/claim');
+      if (prepared.job) { console.log(JSON.stringify(await runPreparation(prepared.job, api))); continue; }
       const { job } = await api('claim');
       if (job) console.log(JSON.stringify(await runJob(job, api, { adapters })));
       else await sleep(10000);

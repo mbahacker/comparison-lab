@@ -1,3 +1,4 @@
+import { queuePolicyPreparation, handlePreparation } from './policy-preparation.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -10,6 +11,8 @@ import { getReport, listReports, protocol, reportSummary, SEED_SLUG, validateEvi
 import { getProviderCatalog, getToolLibrary, getTool, toolId, buildToolComparisons, planReuse, resolveReuse } from './reuse.ts';
 import { persistReport } from './publication.ts';
 import { recordReportAccess } from './report-access.ts';
+import { policyProtocol, planPolicyReuse, resolvePolicyReuse, getPolicyProviderCatalog, completePolicyJob } from './policy-automation.ts';
+import { getResearchLibrary } from './research-library.ts';
 
 const privateHeaders = { 'cache-control': 'private, no-store', vary: 'Cookie' };
 const json = (body: unknown, status = 200, headers: HeadersInit = {}) => new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...privateHeaders, 'x-content-type-options': 'nosniff', ...headers } });
@@ -34,9 +37,32 @@ async function body(request: Request, maxBytes = 32_000): Promise<Row> {
   return parsed;
 }
 
+const isPolicy = (snapshot: Row) => snapshot.id === 'policy-resolution-v1';
+function newRequestProtocol(input: Row) {
+  if (input.protocol === undefined || input.protocol === 'policy-resolution-v1') return policyProtocol();
+  if (input.protocol === 'quality-pilot-v1') return protocol();
+  throw new ApiError(400, 'Choose a supported evaluation protocol.');
+}
+function requestProtocol(row: Row): Row {
+  // Requests created before protocol snapshots existed retain the quality pilot.
+  // An already-created job is the original approved source of truth.
+  const saved = row.protocol_json || (db().prepare('SELECT protocol_json FROM jobs WHERE request_id=?').get(row.id) as Row | undefined)?.protocol_json;
+  const snapshot = saved ? JSON.parse(saved) : protocol();
+  if (!['policy-resolution-v1', 'quality-pilot-v1'].includes(snapshot.id)) throw new ApiError(422, 'The frozen request protocol is not supported.');
+  return snapshot;
+}
+function evaluationLimits(snapshot: Row, providerCount: number) {
+  return isPolicy(snapshot)
+    ? { conversations: 55 * providerCount, turns: 515 * providerCount, checkpoints: 500 * providerCount }
+    : { conversations: 6 * providerCount, turns: 60 * providerCount, decisions: 78 * providerCount };
+}
+const reusePlan = (providers: Row[], snapshot: Row): Row => isPolicy(snapshot) ? planPolicyReuse(providers, snapshot) : planReuse(providers as any, snapshot);
+
 function requestView(row: Row): ComparisonRequest {
-  const providers = JSON.parse(row.providers_json);
-  return { id: row.id, status: row.status, providers, kind: providers.length === 1 ? 'tool' : 'comparison', toolId: row.tool_id || null, comparisons: row.comparisons_json ? JSON.parse(row.comparisons_json) : [], createdAt: row.created_at, updatedAt: row.updated_at, reviewedAt: row.reviewed_at, reviewNote: row.review_note, reportSlug: row.report_slug, error: row.error, notes: row.notes || null };
+  const providers = JSON.parse(row.providers_json); const snapshot = requestProtocol(row);
+  const reportPath = row.report_slug ? `${isPolicy(snapshot) ? '/studies' : '/reports'}/${row.report_slug}` : null;
+  const comparisons = (row.comparisons_json ? JSON.parse(row.comparisons_json) : []).map((report: Row) => ({ ...report, path: report.path || `${isPolicy(snapshot) ? '/studies' : '/reports'}/${report.slug}` }));
+  return { protocol: snapshot.id, protocolSha256: snapshot.sha256, reportPath, limits: evaluationLimits(snapshot, providers.length), id: row.id, status: row.status, providers, kind: providers.length === 1 ? 'tool' : 'comparison', toolId: row.tool_id || null, comparisons, createdAt: row.created_at, updatedAt: row.updated_at, reviewedAt: row.reviewed_at, reviewNote: row.review_note, reportSlug: row.report_slug, error: row.error, notes: row.notes || null };
 }
 function requestRow(id: string) {
   const row = db().prepare('SELECT * FROM requests WHERE id = ?').get(id) as Row | undefined;
@@ -73,6 +99,25 @@ function linkExistingTool(row: Row, tool: Row, jobId?: string) {
   db().prepare("UPDATE requests SET status='published',report_slug=?,tool_id=?,comparisons_json=?,updated_at=?,error=NULL WHERE id=?").run(tool.reportSlug, tool.id, JSON.stringify(comparisons), now, row.id);
   if (jobId) db().prepare("UPDATE jobs SET state='published',updated_at=?,lease_token_hash=NULL,lease_expires_at=NULL,error=NULL WHERE id=?").run(now, jobId);
   enqueueMail(`request:${row.id}:existing-tool`, user.email, `Your tool analysis is already available: ${tool.name}`, `Hi ${user.name},\n\nThis tool already has a complete, compatible three-storefront analysis captured within the last 30 days. No duplicate evaluation was started.\n\nExplore the tool profile:\n${config().appUrl}/tools/${tool.id}\n\nSource report:\n${config().appUrl}/reports/${tool.reportSlug}${comparisons.length ? `\n\nPublished comparisons:\n${comparisons.map(report => `${report.title}: ${config().appUrl}/reports/${report.slug}`).join('\n')}` : ''}\n\nOriginal capture dates and limitations remain visible. Detailed evidence requires a verified work email.\n\nAlhena Research Lab`);
+}
+
+function linkExistingPolicy(row: Row, plan: Row, jobId?: string) {
+  const existing = plan.existingTool || plan.exactReport;
+  if (!existing) throw new ApiError(422, 'Existing study evidence is missing.');
+  const slug = existing.studySlug || existing.reportSlug || existing.slug;
+  const reportPath = `/studies/${slug}`;
+  const id = plan.existingTool?.id || null;
+  const comparisons = (existing.comparisons || []).map((item: Row) => ({ ...item, path: `/studies/${item.slug}` }));
+  const now = iso(); const user = requester(row);
+  db().prepare("UPDATE requests SET status='published',report_slug=?,tool_id=?,comparisons_json=?,updated_at=?,error=NULL WHERE id=?").run(slug, id, JSON.stringify(comparisons), now, row.id);
+  if (jobId) db().prepare("UPDATE jobs SET state='published',updated_at=?,lease_token_hash=NULL,lease_expires_at=NULL,error=NULL WHERE id=?").run(now, jobId);
+  enqueueMail(`request:${row.id}:existing-policy-study`, user.email, `Your study is already available: ${existing.title || existing.name}`, `Hi ${user.name},\n\nCompatible policy-resolution evidence for this cohort was captured within the last 30 days. No duplicate evaluation was started. Original capture dates and limitations are retained.\n\nRead the study:\n${config().appUrl}${reportPath}\n\nDetailed evidence requires a verified work email.\n\nAlhena Research Lab`);
+}
+function linkReuse(row: Row, reuse: Row, snapshot: Row, jobId?: string) {
+  if (isPolicy(snapshot) && (reuse.existingTool || reuse.exactReport)) { linkExistingPolicy(row, reuse, jobId); return true; }
+  if (JSON.parse(row.providers_json).length === 1 && reuse.existingTool) { linkExistingTool(row, reuse.existingTool, jobId); return true; }
+  if (reuse.exactReport) { linkExistingReport(row, reuse.exactReport, jobId); return true; }
+  return false;
 }
 
 function activeLease(input: Row) {
@@ -125,20 +170,22 @@ async function submitRequest(request: Request, singleTool = false) {
   workEmail(user.email);
   text(user.name, 'Name', 2, 120);
   const input = await body(request);
-  const providers = singleTool ? providersInput([input.provider], 1) : providersInput(input.providers ?? input.vendors);
+  const snapshot = newRequestProtocol(input); const stores = 3;
+  const providers = singleTool ? providersInput([input.provider], 1, stores) : providersInput(input.providers ?? input.vendors, 2, stores);
   if (input.consent !== true) throw new ApiError(400, 'Confirm that the submitted websites are public and that published results will include the submitted company and customer names.');
   const notes = input.notes ? multilineText(input.notes, 'Notes') : null;
-  const reuse: Row = planReuse(providers, protocol());
+  const reuse: Row = reusePlan(providers, snapshot);
   if (singleTool && reuse.existingTool) return json({ existingTool: reuse.existingTool, reuse: reuseView(reuse) });
   if (!singleTool && reuse.exactReport) return json({ existingReport: reuse.exactReport, reuse: reuseView(reuse) });
   const reviewToken = token(); const id = randomUUID(); const now = iso();
   transaction(() => {
     rateLimit(`requests:${user.id}`, 5, 86_400_000);
-    db().prepare('INSERT INTO requests (id,user_id,providers_json,status,created_at,updated_at,review_token_hash,review_expires_at,notes,consent_at) VALUES (?,?,?,?,?,?,?,?,?,?)').run(id, user.id, JSON.stringify(providers), 'pending_review', now, now, hash(reviewToken), Date.now() + 604_800_000, notes, now);
+    db().prepare('INSERT INTO requests (id,user_id,providers_json,status,created_at,updated_at,review_token_hash,review_expires_at,notes,consent_at,protocol_json) VALUES (?,?,?,?,?,?,?,?,?,?,?)').run(id, user.id, JSON.stringify(providers), 'pending_review', now, now, hash(reviewToken), Date.now() + 604_800_000, notes, now, JSON.stringify(snapshot));
+    if (isPolicy(snapshot)) { queuePolicyPreparation(id, providers, user); return; }
     const title = providers.map(p => p.name).join(' vs. ');
     const label = singleTool ? 'tool evaluation' : 'comparison';
     const deployments = providers.map(p => `${p.name} (${p.website})\n${p.customers.map(c => `  ${c.name}: ${c.website}`).join('\n')}`).join('\n\n');
-    enqueueMail(`request:${id}:review`, config().adminEmail, `Review requested: ${title}`, `A verified mailbox submitted a ${label}.\n\nRequester: ${user.name} <${user.email}>\n\n${deployments}${notes ? `\n\nRequester notes: ${notes}` : ''}\n\nCurrent reuse plan: ${reuse.reusedConversations} existing conversations; ${reuse.newConversations} new conversations (${reuse.newConversations * 10} new turns). Reuse is limited to compatible captures within 30 days; availability is checked again before execution. Original dates and limitations remain visible.\n\nReview and confirm the provider attribution of all ${providers.length * 3} storefronts before approving:\n${config().appUrl}/review/${reviewToken}\n\nOpening this link cannot approve or start a run. The review link expires in seven days. Approval authorizes at most ${providers.length * 60} new turns and automatic publication only after validation.\n\nAlhena Research Lab`);
+    enqueueMail(`request:${id}:review`, config().adminEmail, `Review requested: ${title}`, `A verified mailbox submitted a ${label}.\n\nRequester: ${user.name} <${user.email}>\n\n${deployments}${notes ? `\n\nRequester notes: ${notes}` : ''}\n\nCurrent reuse plan: ${reuse.reusedConversations} existing conversations; ${reuse.newConversations} new conversations (${isPolicy(snapshot) ? 'up to ' + evaluationLimits(snapshot, providers.length).turns : reuse.newConversations * 10} new turns). Reuse is limited to compatible captures within 30 days; availability is checked again before execution. Original dates and limitations remain visible.\n\nReview and confirm the provider attribution of all ${providers.length * stores} storefronts before approving:\n${config().appUrl}/review/${reviewToken}\n\nOpening this link cannot approve or start a run. The review link expires in seven days. Approval authorizes at most ${evaluationLimits(snapshot, providers.length).turns} new turns under ${snapshot.id} and automatic publication only after validation.\n\nAlhena Research Lab`);
     enqueueMail(`request:${id}:received`, user.email, `${singleTool ? 'Tool evaluation' : 'Comparison'} submitted: ${title}`, `Hi ${user.name},\n\nYour ${label} request is awaiting review. We will verify the proposed deployments before running it.\n\nView your private request status:\n${statusUrl(id)}\n\nWe will email you when it is approved and when the completed report is published.`);
   });
   return json({ request: requestView(requestRow(id)) }, 201);
@@ -156,25 +203,26 @@ function reviewRow(rawToken: string) {
 async function reviewRequest(request: Request, rawToken: string) {
   if (request.method === 'GET') {
     const row = reviewRow(rawToken); const user = requester(row);
-    return json({ request: requestView(row), requester: { name: user.name, email: user.email }, expiresAt: new Date(row.review_expires_at).toISOString(), decided: !!row.review_decision, reuse: reuseView(planReuse(JSON.parse(row.providers_json), protocol())) });
+    return json({ request: requestView(row), requester: { name: user.name, email: user.email }, expiresAt: new Date(row.review_expires_at).toISOString(), decided: !!row.review_decision, reuse: reuseView(reusePlan(JSON.parse(row.providers_json), requestProtocol(row))) });
   }
   const input = await body(request);
   if (!['approve', 'reject'].includes(input.decision)) throw new ApiError(400, 'Choose approve or reject.');
   if (input.decision === 'approve' && input.confirmAttribution !== true) throw new ApiError(400, 'Confirm you reviewed the provider attribution for every submitted customer storefront.');
   const note = input.note ? multilineText(input.note, 'Review note') : null;
-  const approvedProtocol = input.decision === 'approve' ? protocol() : null;
   const id = transaction(() => {
     const row = reviewRow(rawToken);
     if (row.review_decision) {
       if (row.review_decision !== input.decision) throw new ApiError(409, 'This request has already been reviewed.');
       return row.id;
     }
+    if (input.decision === 'approve' && isPolicy(requestProtocol(row)) && (row.status === 'researching' || JSON.parse(row.providers_json).some((p: Row) => p.customers.length !== 5))) throw new ApiError(409, 'Complete five-storefront research before approval.');
     const now = iso(); const user = requester(row);
     db().prepare('UPDATE requests SET status=?,review_decision=?,reviewed_at=?,updated_at=?,review_note=?,attribution_confirmed_at=? WHERE id=?').run(input.decision === 'approve' ? 'queued' : 'rejected', input.decision, now, now, note, input.decision === 'approve' ? now : null, row.id);
     if (input.decision === 'approve') {
-      const reuse: Row = planReuse(JSON.parse(row.providers_json), approvedProtocol!);
-      if (JSON.parse(row.providers_json).length === 1 && reuse.existingTool) { linkExistingTool(row, reuse.existingTool); return row.id; }
-      if (reuse.exactReport) { linkExistingReport(row, reuse.exactReport); return row.id; }
+      const approvedProtocol = requestProtocol(row);
+      db().prepare('UPDATE requests SET protocol_json=? WHERE id=?').run(JSON.stringify(approvedProtocol), row.id);
+      const reuse: Row = reusePlan(JSON.parse(row.providers_json), approvedProtocol);
+      if (linkReuse(row, reuse, approvedProtocol)) return row.id;
       db().prepare('INSERT INTO jobs (id,request_id,state,protocol_json,reuse_json,available_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').run(randomUUID(), row.id, 'queued', JSON.stringify(approvedProtocol), JSON.stringify(reuse), Date.now(), now, now);
       enqueueMail(`request:${row.id}:approved`, user.email, `${JSON.parse(row.providers_json).length === 1 ? 'Tool evaluation' : 'Comparison'} approved: ${requestTitle(row)}`, `Hi ${user.name},\n\nYour evaluation has been approved. The current plan reuses ${reuse.reusedConversations} previously evaluated conversations and runs ${reuse.newConversations} new conversations. Only compatible analysis captured within 30 days is reused; its original dates and limitations remain visible. Unsupported storefronts or incomplete evidence will pause the run for review.\n\nPrivate status:\n${statusUrl(row.id)}\n\nWe will send the report link when capture, judging, audit and validation are complete.\n\nAlhena Research Lab`);
     } else {
@@ -188,6 +236,14 @@ async function reviewRequest(request: Request, rawToken: string) {
 async function claimJob() {
   const job = transaction(() => {
     const now = Date.now(); const c = config();
+    // A policy run may have completed costly captures or model calls before a crash.
+    // Do not automatically replay an interrupted attempt under a new lease.
+    const interrupted = db().prepare("SELECT * FROM jobs WHERE state='running' AND lease_expires_at<=? AND json_extract(protocol_json,'$.id')='policy-resolution-v1'").all(now) as Row[];
+    for (const stopped of interrupted) {
+      db().prepare("UPDATE jobs SET state='needs_review',updated_at=?,error='Policy run interrupted; retained artifacts require review before resume.' WHERE id=?").run(iso(),stopped.id);
+      db().prepare("UPDATE requests SET status='needs_review',updated_at=?,error='Evaluation was interrupted. Completed evidence has been retained for review.' WHERE id=?").run(iso(),stopped.request_id);
+      enqueueMail(`job:${stopped.id}:interrupted:${stopped.attempt}`,c.adminEmail,'Policy evaluation needs recovery',`Request ${stopped.request_id} stopped responding. Review retained artifacts before an explicit retry. Completed calls are never silently replayed.`);
+    }
     const exhausted = db().prepare("SELECT * FROM jobs WHERE state='running' AND lease_expires_at <= ? AND attempt >= ?").all(now, c.maxAttempts) as Row[];
     for (const failed of exhausted) {
       db().prepare("UPDATE jobs SET state='needs_review',updated_at=?,error='Worker lease expired after maximum attempts.' WHERE id=?").run(iso(), failed.id);
@@ -201,17 +257,18 @@ async function claimJob() {
     const snapshot = JSON.parse(selected.protocol_json);
     // Refresh before each attempt: aged-out evidence becomes new work, while a
     // comparison published by an earlier queued job avoids a duplicate run.
-    const reuse: Row = planReuse(approvedProviders, snapshot);
-    if (approvedProviders.length === 1 && reuse.existingTool) { linkExistingTool(selectedRequest, reuse.existingTool, selected.id); return null; }
-    if (reuse.exactReport) { linkExistingReport(selectedRequest, reuse.exactReport, selected.id); return null; }
-    const reusedConversations = resolveReuse(reuse, approvedProviders, snapshot);
+    const frozenRequest = requestProtocol(selectedRequest);
+    if (JSON.stringify(frozenRequest) !== JSON.stringify(snapshot)) throw new ApiError(422, 'The approved job does not match its frozen request protocol.');
+    const reuse: Row = reusePlan(approvedProviders, snapshot);
+    if (linkReuse(selectedRequest, reuse, snapshot, selected.id)) return null;
+    const reused = isPolicy(snapshot) ? { reusedEvidence: resolvePolicyReuse(reuse, approvedProviders, snapshot) } : { reusedConversations: resolveReuse(reuse, approvedProviders, snapshot) };
     db().prepare('UPDATE jobs SET reuse_json=? WHERE id=?').run(JSON.stringify(reuse), selected.id);
     const leaseToken = token(); const fencingToken = selected.fencing_token + 1;
     const expires = now + c.leaseSeconds * 1000;
     db().prepare("UPDATE jobs SET state='running',attempt=attempt+1,fencing_token=?,lease_token_hash=?,lease_expires_at=?,heartbeat_at=?,updated_at=?,error=NULL WHERE id=?").run(fencingToken, hash(leaseToken), expires, now, iso(), selected.id);
     db().prepare("UPDATE requests SET status='running',updated_at=?,error=NULL WHERE id=?").run(iso(), selected.request_id);
     const request = requestRow(selected.request_id);
-    return { id: selected.id, requestId: selected.request_id, leaseToken, fencingToken, leaseExpiresAt: new Date(expires).toISOString(), attempt: selected.attempt + 1, providers: JSON.parse(request.providers_json), protocol: snapshot, reusedConversations, limits: { conversations: approvedProviders.length * 6, turns: approvedProviders.length * 60, decisions: approvedProviders.length * 78 }, approvedAt: request.reviewed_at, attributionConfirmedAt: request.attribution_confirmed_at };
+    return { id: selected.id, requestId: selected.request_id, leaseToken, fencingToken, leaseExpiresAt: new Date(expires).toISOString(), attempt: selected.attempt + 1, providers: JSON.parse(request.providers_json), protocol: snapshot, ...reused, limits: evaluationLimits(snapshot, approvedProviders.length), approvedAt: request.reviewed_at, attributionConfirmedAt: request.attribution_confirmed_at };
   });
   return json({ job });
 }
@@ -227,15 +284,17 @@ async function heartbeatJob(request: Request) {
 }
 
 async function completeJob(request: Request) {
-  const input = await body(request, 12_000_000);
+  const input = await body(request, 24_000_000);
   const previous = db().prepare('SELECT * FROM jobs WHERE id=?').get(typeof input.jobId === 'string' ? input.jobId : '') as Row | undefined;
   // A lost HTTP response must not trigger another publication or another email.
-  // Only a previously successful single-tool completion can use this receipt.
+  // Only the exact previously successful completion can use this receipt.
   if (previous?.state === 'published' && previous.completion_json && typeof input.leaseToken === 'string' && previous.fencing_token === input.fencingToken && safeEqual(previous.completion_token_hash || '', hash(input.leaseToken)) && safeEqual(previous.completion_evidence_hash || '', hash(JSON.stringify(input.evidence) || ''))) {
     return json(JSON.parse(previous.completion_json));
   }
   const job = activeLease(input); const row = requestRow(job.request_id); const user = requester(row);
   const providers = JSON.parse(row.providers_json); const snapshot = JSON.parse(job.protocol_json);
+  if (JSON.stringify(requestProtocol(row)) !== JSON.stringify(snapshot)) throw new ApiError(422, 'The approved job does not match its frozen request protocol.');
+  if (isPolicy(snapshot)) return json(await completePolicyJob(input, job, row, user));
   const authorizedReuse = resolveReuse(job.reuse_json ? JSON.parse(job.reuse_json) : null, providers, snapshot);
   const counts = validateEvidence(input.evidence, providers, snapshot, [user.email, user.name, config().adminEmail, input.leaseToken, config().workerSecret], authorizedReuse);
   const singleTool = providers.length === 1; const completedAt = iso();
@@ -297,6 +356,7 @@ export async function handleApi(request: Request, segments?: string[]): Promise<
     if (parts[0] === 'worker') {
       requireWorker(request);
       if (method !== 'POST') throw new ApiError(405, 'Use POST.');
+      if (parts[1] === 'prepare') return await handlePreparation(request, parts);
       if (route === 'worker/claim') return await claimJob();
       if (route === 'worker/heartbeat') return await heartbeatJob(request);
       if (route === 'worker/complete') return await completeJob(request);
@@ -306,6 +366,7 @@ export async function handleApi(request: Request, segments?: string[]): Promise<
     if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(method)) requireOrigin(request);
     if (route === 'health' && method === 'GET') return json({ ok: true, ...readiness() });
     if (route === 'tools' && method === 'GET') return json(getToolLibrary());
+    if (route === 'research-tools' && method === 'GET') return json(getResearchLibrary());
     if (parts[0] === 'tools' && parts.length === 2 && method === 'GET') {
       const tool = getTool(parts[1]);
       if (!tool) throw new ApiError(404, 'Tool not found.');
@@ -315,19 +376,23 @@ export async function handleApi(request: Request, segments?: string[]): Promise<
       const user = requireUser(request); workEmail(user.email);
       const input = await body(request);
       transaction(() => rateLimit(`reuse-preview:${user.id}`, 30, 60_000));
-      return json(reuseView(planReuse(providersInput([input.provider], 1), protocol())));
+      const snapshot = newRequestProtocol(input);
+      return json(reuseView(reusePlan(providersInput([input.provider], 1, 3), snapshot)));
     }
     if (route === 'tools/requests' && method === 'POST') return await submitRequest(request, true);
     if (route === 'providers' && method === 'GET') {
       const query = new URL(request.url).searchParams.get('q') || '';
       if (query.length > 180) throw new ApiError(400, 'Provider search is too long.');
-      return json(getProviderCatalog(query));
+      const current = getPolicyProviderCatalog(query);
+      const combined = new Map([...current, ...getProviderCatalog(query).providers].map(provider => [toolId(provider.website), provider] as const).reverse());
+      return json({ providers: [...combined.values()].sort((a,b) => a.name.localeCompare(b.name)).map(provider => ({ ...provider, customers: provider.customers.slice(0, 5) })) });
     }
     if (route === 'reuse/preview' && method === 'POST') {
       const user = requireUser(request); workEmail(user.email);
       const input = await body(request);
       transaction(() => rateLimit(`reuse-preview:${user.id}`, 30, 60_000));
-      return json(reuseView(planReuse(providersInput(input.providers), protocol())));
+      const snapshot = newRequestProtocol(input);
+      return json(reuseView(reusePlan(providersInput(input.providers, 2, 3), snapshot)));
     }
     if (route === 'auth/start' && method === 'POST') return await startAuth(request);
     if (route === 'auth/verify' && method === 'POST') return await verifyAuth(request);

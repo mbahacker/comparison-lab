@@ -37,11 +37,14 @@ export type AnalysisRequest = {
   updatedAt?: string;
   reviewNote?: string;
   reportSlug?: string;
+  reportPath?: string;
+  protocol?: string;
+  limits?: { conversations: number; turns: number; checkpoints?: number; decisions?: number };
   toolId?: string;
   kind?: string;
   notes?: string;
   error?: string;
-  comparisons?: { slug: string; title: string }[];
+  comparisons?: { slug: string; title: string; path?: string }[];
 };
 export type FilledFields = Record<string, string>;
 

@@ -23,6 +23,7 @@ beforeEach(() => {
 });
 after(() => { Date.now = realNow; closeDb(); fs.rmSync(root, { recursive: true, force: true }); });
 async function call(route: string, body?: unknown, worker = false, authenticated = true) {
+  if (body && ['tools/requests','tools/reuse/preview','requests','reuse/preview'].includes(route)) body = { ...(body as Record<string, unknown>), protocol: 'quality-pilot-v1' };
   const headers: Record<string, string> = { origin: process.env.APP_URL! };
   if (authenticated) headers.cookie = 'comparison_lab_session=fixture-session';
   if (body !== undefined) headers['content-type'] = 'application/json';

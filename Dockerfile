@@ -22,7 +22,8 @@ COPY --from=build --chown=lab:lab /app/lib/server ./lib/server
 COPY --from=build --chown=lab:lab /app/lib/policy-study.ts ./lib/policy-study.ts
 # The operator CLI runs source TypeScript, outside Next's bundled server modules.
 COPY --from=build --chown=lab:lab /app/node_modules/zod ./node_modules/zod
-COPY --from=build --chown=lab:lab /app/worker/protocol.mjs /app/worker/scoring.mjs /app/worker/reuse.mjs /app/worker/authorship.mjs /app/worker/evidence.mjs ./worker/
+COPY --from=build --chown=lab:lab /app/worker/*.mjs ./worker/
+COPY --from=build --chown=lab:lab /app/benchmark ./benchmark
 USER lab
 EXPOSE 3100
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s CMD node -e "fetch('http://127.0.0.1:3100/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"

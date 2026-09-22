@@ -162,9 +162,9 @@ export function RequestFlow({ initialProvider }: { initialProvider?: Pick<Vendor
             your tool.
           </h1>
           <p className="intro">
-            One tool. Three customer storefronts.
+            One tool. Three customer suggestions.
             <br />
-            A quality-only evaluation.
+            Resolution, quality and speed.
           </p>
           <ol className="steps">
             {[
@@ -184,12 +184,12 @@ export function RequestFlow({ initialProvider }: { initialProvider?: Pick<Vendor
           <div className="aside-note">
             <ShieldCheck size={22} />
             <p>
-              This form requests the three-storefront quality-pilot evaluation.
-              It does not automatically run the broader policy-resolution study
-              shown in the current results. Every request is reviewed before
-              testing starts; compatible quality-pilot results can be compared.
+              This form uses the policy-resolution methodology shown in the current
+              results. We research two more storefronts, then review all five before testing starts. Validated
+              results join the leaderboard and generate comparisons with compatible
+              recent studies.
             </p>
-            <Link href="/methodology/quality-pilot-v1">
+            <Link href="/studies/policy-resolution-v1">
               Read this evaluation’s methodology <ExternalLink size={13} />
             </Link>
             <p><Link href="/methodology">Compare the research methods</Link></p>
@@ -354,7 +354,7 @@ export function RequestFlow({ initialProvider }: { initialProvider?: Pick<Vendor
               <p className="muted">
                 Enter one AI tool and three customer storefronts where it
                 is deployed. Include the exact storefront URLs where its live
-                chat is available. We’ll look for published analyses as you type.
+                chat is available. We’ll research two additional deployments before requesting approval for the full five-storefront evaluation.
               </p>
               <ProviderFields index={0} value={provider}
                 active={step === 2 && !busy} onChange={updateVendor} />
@@ -377,11 +377,11 @@ export function RequestFlow({ initialProvider }: { initialProvider?: Pick<Vendor
           {step === 3 && (
             <div>
               <p className="eyebrow">STEP 03</p>
-              <h2 id="flow-heading">{preview?.existingTool ? "This tool already has a reusable quality-pilot analysis." : "Ready for review."}</h2>
+              <h2 id="flow-heading">{preview?.existingTool ? "This tool already has a reusable current analysis." : "Ready for review."}</h2>
               <p className="muted">
                 {preview?.existingTool
-                  ? "All six quality-pilot conversations for these storefronts have eligible analysis from the last 30 days. Their original source report is shown below."
-                  : "Check your tool, storefronts and planned work below. This quality-pilot analysis covers six conversations and 60 turns. It produces quality scores, not policy-resolution composites."}
+                  ? "These storefronts have compatible policy-resolution analysis from the last 30 days. Their original source report is shown below."
+                  : "Check your tool, storefronts and planned work below. This analysis covers 50 core conversations and five separate guardrail conversations, with at most 515 turns. It measures policy-compliant resolution, quality and speed."}
               </p>
               {preview && <ReuseSummary preview={preview} />}
               <ComparisonDetails vendors={[provider]} />
@@ -390,7 +390,7 @@ export function RequestFlow({ initialProvider }: { initialProvider?: Pick<Vendor
               <div className="request-scope">
                 <strong>What happens next</strong>
                 <p>
-                  A reviewer checks your request. If approved, we email you and
+                  We research two more deployments and ask the reviewer to verify all five. If approved, we email you and
                   reuse eligible published evidence and test the remaining
                   storefronts. A complete tool analysis that passes validation
                   is published, and we email you its profile link. Incomplete or blocked
