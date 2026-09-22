@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./marketing.css";
 import Link from "next/link";
+import { ResultsLink } from "@/components/lab/results-link";
 
 // Resolve public social URLs from the deployment runtime, including Docker APP_URL.
 export const dynamic = "force-dynamic";
@@ -60,7 +61,7 @@ export default function RootLayout({
               <span className="lab-wordmark">Research Lab</span>
             </Link>
             <nav aria-label="Main navigation">
-              <Link className="nav-link" href="/#tools">Results</Link>
+              <ResultsLink className="nav-link" tab="tools">Results</ResultsLink>
               <Link className="nav-link nav-secondary" href="/studies">Studies</Link>
               <Link className="nav-link nav-secondary" href="/methodology">Methodology</Link>
               <Link className="nav-cta" href="/request">
@@ -86,10 +87,10 @@ export default function RootLayout({
             </div>
             <nav className="footer-links" aria-label="Research">
               <p>Research</p>
-              <Link href="/#tools">Latest results</Link>
+              <ResultsLink tab="tools">Latest results</ResultsLink>
               <Link href="/studies">Studies</Link>
               <Link href="/methodology">Methodology</Link>
-              <Link href="/#archive">Quality pilot archive</Link>
+              <ResultsLink tab="archive">Quality pilot archive</ResultsLink>
             </nav>
             <nav className="footer-links" aria-label="Evaluations">
               <p>Evaluations</p>

@@ -151,7 +151,7 @@ export function HomeProcess({ study }: { study?: PolicyStudySummary }) {
         </li>
         <li>
           <h3>Judge every checkpoint twice, blind</h3>
-          <p>Two separate AI judgments per checkpoint, then an audit. Scores come from fixed arithmetic, not from the judge’s opinion of the whole conversation.</p>
+          <p>Each checkpoint gets an AI judgment and a separate blind audit, and only counts when both agree on the evidence. Scores come from fixed arithmetic, not from a judge’s opinion of the whole conversation.</p>
           {study && <p className="step-proof"><strong>{study.sample.auditedPcrDecisions}</strong> checkpoints judged and audited</p>}
         </li>
         <li>
