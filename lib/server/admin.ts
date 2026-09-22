@@ -1,3 +1,4 @@
+import { correctRoster } from './roster-amendments.ts';
 import { randomUUID } from 'node:crypto';
 import { config } from './config.ts';
 import { db, transaction } from './db.ts';
@@ -19,6 +20,7 @@ export async function adminCommand(command: string, requestId?: string) {
   if (!requestId) throw new Error('A request ID is required.');
   const row = db().prepare('SELECT * FROM requests WHERE id=?').get(requestId) as Row | undefined;
   if (!row) throw new Error('Request not found.');
+  if (command === 'correct-roster') return correctRoster(row.id);
   if (command === 'reissue-review') {
     if (row.review_decision) throw new Error('This request has already been reviewed.');
     transaction(() => {
@@ -65,7 +67,7 @@ export async function adminCommand(command: string, requestId?: string) {
     });
     return { ok: true, requestId: row.id, message: 'The approved run is queued again with a fresh retry budget.' };
   }
-  throw new Error('Commands: list, outbox, flush-mail, reissue-review REQUEST_ID, retry REQUEST_ID, retry-research REQUEST_ID, prepare-current REQUEST_ID');
+  throw new Error('Commands: correct-roster REQUEST_ID, list, outbox, flush-mail, reissue-review REQUEST_ID, retry REQUEST_ID, retry-research REQUEST_ID, prepare-current REQUEST_ID');
 }
 
 if (process.argv[1]?.endsWith('/admin.ts')) {

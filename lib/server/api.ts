@@ -1,3 +1,4 @@
+import { priorRosterApprovals } from './roster-amendments.ts';
 import { queuePolicyPreparation, handlePreparation } from './policy-preparation.ts';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -203,7 +204,7 @@ function reviewRow(rawToken: string) {
 async function reviewRequest(request: Request, rawToken: string) {
   if (request.method === 'GET') {
     const row = reviewRow(rawToken); const user = requester(row);
-    return json({ request: requestView(row), requester: { name: user.name, email: user.email }, expiresAt: new Date(row.review_expires_at).toISOString(), decided: !!row.review_decision, reuse: reuseView(reusePlan(JSON.parse(row.providers_json), requestProtocol(row))) });
+    return json({ request: requestView(row), requester: { name: user.name, email: user.email }, expiresAt: new Date(row.review_expires_at).toISOString(), decided: !!row.review_decision, reuse: reuseView(reusePlan(JSON.parse(row.providers_json), requestProtocol(row))), rosterAmendment: db().prepare('SELECT id,created_at FROM roster_amendments WHERE request_id=? ORDER BY created_at DESC LIMIT 1').get(row.id) || null });
   }
   const input = await body(request);
   if (!['approve', 'reject'].includes(input.decision)) throw new ApiError(400, 'Choose approve or reject.');
@@ -222,9 +223,15 @@ async function reviewRequest(request: Request, rawToken: string) {
       const approvedProtocol = requestProtocol(row);
       db().prepare('UPDATE requests SET protocol_json=? WHERE id=?').run(JSON.stringify(approvedProtocol), row.id);
       const reuse: Row = reusePlan(JSON.parse(row.providers_json), approvedProtocol);
-      if (linkReuse(row, reuse, approvedProtocol)) return row.id;
-      db().prepare('INSERT INTO jobs (id,request_id,state,protocol_json,reuse_json,available_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').run(randomUUID(), row.id, 'queued', JSON.stringify(approvedProtocol), JSON.stringify(reuse), Date.now(), now, now);
-      enqueueMail(`request:${row.id}:approved`, user.email, `${JSON.parse(row.providers_json).length === 1 ? 'Tool evaluation' : 'Comparison'} approved: ${requestTitle(row)}`, `Hi ${user.name},\n\nYour evaluation has been approved. The current plan reuses ${reuse.reusedConversations} previously evaluated conversations and runs ${reuse.newConversations} new conversations. Only compatible analysis captured within 30 days is reused; its original dates and limitations remain visible. Unsupported storefronts or incomplete evidence will pause the run for review.\n\nPrivate status:\n${statusUrl(row.id)}\n\nWe will send the report link when capture, judging, audit and validation are complete.\n\nAlhena Research Lab`);
+      const existingJob = db().prepare('SELECT * FROM jobs WHERE request_id=?').get(row.id) as Row | undefined;
+      if (existingJob) {
+        if (existingJob.state !== 'awaiting_roster_approval' || existingJob.protocol_json !== JSON.stringify(approvedProtocol) || !db().prepare('SELECT id FROM roster_amendments WHERE request_id=? AND job_id=?').get(row.id,existingJob.id)) throw new ApiError(409, 'Existing evaluation is not awaiting a corrected roster approval.');
+        db().prepare("UPDATE jobs SET state='queued',attempt=0,reuse_json=?,available_at=?,updated_at=?,error=NULL WHERE id=?").run(JSON.stringify(reuse),Date.now(),now,existingJob.id);
+      } else {
+        if (linkReuse(row, reuse, approvedProtocol)) return row.id;
+        db().prepare('INSERT INTO jobs (id,request_id,state,protocol_json,reuse_json,available_at,created_at,updated_at) VALUES (?,?,?,?,?,?,?,?)').run(randomUUID(), row.id, 'queued', JSON.stringify(approvedProtocol), JSON.stringify(reuse), Date.now(), now, now);
+      }
+      enqueueMail(`request:${row.id}:approved${existingJob ? ':' + now : ''}`, user.email, `${JSON.parse(row.providers_json).length === 1 ? 'Tool evaluation' : 'Comparison'} approved: ${requestTitle(row)}`, `Hi ${user.name},\n\nYour evaluation has been approved. The current plan reuses ${reuse.reusedConversations} previously evaluated conversations and runs ${reuse.newConversations} new conversations. Only compatible analysis captured within 30 days is reused; its original dates and limitations remain visible. Unsupported storefronts or incomplete evidence will pause the run for review.\n\nPrivate status:\n${statusUrl(row.id)}\n\nWe will send the report link when capture, judging, audit and validation are complete.\n\nAlhena Research Lab`);
     } else {
       enqueueMail(`request:${row.id}:rejected`, user.email, JSON.parse(row.providers_json).length === 1 ? 'Update on your tool analysis request' : 'Update on your comparison request', `Hi ${user.name},\n\nYour request was reviewed and will not run.${note ? `\n\nReview note: ${note}` : ''}\n\nPrivate status:\n${statusUrl(row.id)}`);
     }
@@ -253,6 +260,7 @@ async function claimJob() {
     const selected = db().prepare("SELECT * FROM jobs WHERE (state='queued' AND available_at <= ?) OR (state='running' AND lease_expires_at <= ? AND attempt < ?) ORDER BY created_at LIMIT 1").get(now, now, c.maxAttempts) as Row | undefined;
     if (!selected) return null;
     const selectedRequest = requestRow(selected.request_id);
+    if (selectedRequest.review_decision !== 'approve' || !selectedRequest.attribution_confirmed_at || !['queued','running'].includes(selectedRequest.status)) throw new ApiError(409, 'Job scope is not currently approved.');
     const approvedProviders = JSON.parse(selectedRequest.providers_json);
     const snapshot = JSON.parse(selected.protocol_json);
     // Refresh before each attempt: aged-out evidence becomes new work, while a
@@ -268,7 +276,7 @@ async function claimJob() {
     db().prepare("UPDATE jobs SET state='running',attempt=attempt+1,fencing_token=?,lease_token_hash=?,lease_expires_at=?,heartbeat_at=?,updated_at=?,error=NULL WHERE id=?").run(fencingToken, hash(leaseToken), expires, now, iso(), selected.id);
     db().prepare("UPDATE requests SET status='running',updated_at=?,error=NULL WHERE id=?").run(iso(), selected.request_id);
     const request = requestRow(selected.request_id);
-    return { id: selected.id, requestId: selected.request_id, leaseToken, fencingToken, leaseExpiresAt: new Date(expires).toISOString(), attempt: selected.attempt + 1, providers: JSON.parse(request.providers_json), protocol: snapshot, ...reused, limits: evaluationLimits(snapshot, approvedProviders.length), approvedAt: request.reviewed_at, attributionConfirmedAt: request.attribution_confirmed_at };
+    return { id: selected.id, requestId: selected.request_id, leaseToken, fencingToken, leaseExpiresAt: new Date(expires).toISOString(), attempt: selected.attempt + 1, providers: JSON.parse(request.providers_json), protocol: snapshot, ...reused, limits: evaluationLimits(snapshot, approvedProviders.length), approvedAt: request.reviewed_at, priorApprovals: priorRosterApprovals(request,selected), attributionConfirmedAt: request.attribution_confirmed_at };
   });
   return json({ job });
 }

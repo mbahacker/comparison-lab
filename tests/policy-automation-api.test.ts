@@ -31,11 +31,12 @@ async function call(route: string, options: { body?: unknown; cookie?: string; w
 const lease = (job: Row) => ({ jobId: job.id, leaseToken: job.leaseToken, fencingToken: job.fencingToken });
 function proofs() {
   return five.customers.map((store, index) => {
-    const sourceText = `Offline test-only research fixture ${index}. This is not a live deployment or research evidence.`;
+    const sourceText = `Industry\nRetail\nOffline test-only research fixture ${index}. This is not a live deployment or research evidence.`;
     return { providerWebsite: five.website, storeWebsite: store.website,
       sourceUrl: index < 3 ? store.website : `${five.website}customers/store-${index + 1}`,
-      sourceText, sourceSha256: hash(sourceText), retrievedAt: new Date().toISOString(),
-      observedProviderUrls: [`${five.website}widget.js`], sourceLinks: [store.website],
+      sourceTitle:store.name+' customer story',storefrontTitle:store.name+' retail shop',sourceText, sourceSha256: hash(sourceText), retrievedAt: new Date().toISOString(),
+      observedProviderUrls: [`${five.website}widget.js`], sourceLinks: [store.website], sourceContentLinks:[store.website], candidateBasis:'customer-content-link',
+      storefrontText:'Offline fixture. Add to cart',storefrontSha256:hash('Offline fixture. Add to cart'),storefrontLinks:[store.website+'products/example',store.website+'cart'],storefrontUrl:store.website,storefrontRetrievedAt:new Date().toISOString(),
       verification: 'live-provider-fingerprint', submitted: index < 3 };
   });
 }
@@ -113,4 +114,16 @@ test('additional deployment proofs require a same-provider source linking the ex
   assert.throws(() => validateDiscoveries(absentLink, [provider], startedAt), /published provider customer source/);
   const stale = structuredClone(input); stale.discoveries[0].retrievedAt = '2020-01-01T00:00:00.000Z';
   assert.throws(() => validateDiscoveries(stale, [provider], startedAt), /not from this preparation/);
+});
+
+
+test('research completion rejects provider-owned sites, non-retail customers and missing commerce', () => {
+  const startedAt = new Date(Date.now() - 1000).toISOString();
+  const input = { providers: [five], discoveries: proofs() };
+  const owned = structuredClone(input); owned.providers[0].customers[3].website='https://trust.offline-provider.example/';
+  assert.throws(()=>validateDiscoveries(owned,[provider],startedAt),/Provider-owned/);
+  const b2b=structuredClone(input);b2b.discoveries[3].sourceText='Industry\nTechnology\nWe serve retail businesses';b2b.discoveries[3].sourceSha256=hash(b2b.discoveries[3].sourceText);
+  assert.throws(()=>validateDiscoveries(b2b,[provider],startedAt),/retail and live commerce/);
+  const noShop=structuredClone(input);noShop.discoveries[3].storefrontLinks=[];
+  assert.throws(()=>validateDiscoveries(noShop,[provider],startedAt),/retail and live commerce/);
 });

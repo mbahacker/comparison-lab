@@ -3,7 +3,7 @@ WORKDIR /app
 RUN npm install --global --no-audit --no-fund @anthropic-ai/claude-code@2.1.198 \
     && claude --version | grep -F '2.1.198 '
 COPY judge/ ./judge/
-COPY worker/protocol.mjs worker/verdict-schema.mjs worker/execution-profile.mjs worker/policy-quality-spec.mjs ./worker/
+COPY worker/protocol.mjs worker/verdict-schema.mjs worker/execution-profile.mjs worker/policy-quality-spec.mjs worker/judge-errors.mjs ./worker/
 COPY benchmark/policy-judge.mjs ./benchmark/
 COPY rubric/ ./rubric/
 RUN groupadd --gid 1001 evaluator && useradd --uid 1001 --gid evaluator --create-home evaluator

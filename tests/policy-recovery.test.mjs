@@ -6,6 +6,7 @@ import path from 'node:path';
 import {createHash} from 'node:crypto';
 import {runPolicyJob} from '../worker/policy-runner.mjs';
 import {CHECKS} from '../worker/policy-quality-spec.mjs';
+import {WorkerError} from '../worker/protocol.mjs';
 const sha = s => createHash('sha256').update(s).digest('hex');
 const provider={name:'Offline Fixture',website:'https://fixture.example',customers:[1,2,3,4,5].map(n=>({name:`Store ${n}`,website:`https://store-${n}.example/`}))};
 const job={id:'offline-recovery',leaseToken:'offline-lease',fencingToken:1,protocol:{id:'policy-resolution-v1',sha256:'a'.repeat(64)},providers:[provider]};
@@ -37,4 +38,26 @@ test('interrupted capture is retained as unknown and cannot be silently replayed
   await runPolicyJob(job,api,options);
   const second=await runPolicyJob({...job,fencingToken:2},api,options);
   assert.equal(second.code,'capture_outcome_unknown');assert.equal(captures,1);
+}));
+test('authorized retry repeats only the definitively rejected audit and retains the captured conversation and primary',async()=>harness(async(defaults,api)=>{
+  let captures=0,calls=0;
+  const primary={value:{checks:Object.fromEntries(CHECKS.shopping.map(id=>[id,{pass:false,evidence:''}])),resolution_class:'failed',learning:'Offline fixture.'},metadata:{response_id:'offline-primary'}};
+  const options={...defaults,capture:async args=>{captures++;return captureFixture(args);},call:async()=>{
+    calls++;
+    if(calls===1)return primary;
+    if(calls===2)throw Object.assign(new WorkerError('model_request_failed','Private judge returned 422 (invalid_structured_output)'),{judgeDiagnostic:{status:422,code:'invalid_structured_output'}});
+    if(calls===3)return {value:{fixture:'audit'},metadata:{response_id:'offline-audit'}};
+    throw Error('Stop fixture at the first new PCR call');
+  }};
+  assert.equal((await runPolicyJob(job,api,options)).code,'model_request_failed');
+  const cache=path.join(defaults.rootDirectory,job.id,'validated-call-cache');
+  const filenames=await fs.readdir(cache),primaryFile=filenames.find(name=>name.includes('-quality-primary-')&&name.endsWith('-response.json'));
+  const primaryBytes=await fs.readFile(path.join(cache,primaryFile),'utf8');
+  const failure=JSON.parse(await fs.readFile(path.join(defaults.rootDirectory,job.id,'attempt-1','failure.json'),'utf8'));
+  assert.deepEqual(failure.judge,{status:422,code:'invalid_structured_output'});
+  await runPolicyJob({...job,fencingToken:2},api,options);
+  assert.equal(captures,1);assert.equal(calls,4);
+  assert.equal(await fs.readFile(path.join(cache,primaryFile),'utf8'),primaryBytes);
+  assert.equal((await fs.readdir(cache)).filter(name=>name.includes('-quality-audit-')&&name.endsWith('-retry-1-request.json')).length,1);
+  assert.equal((await fs.readdir(cache)).filter(name=>name.includes('-quality-audit-')&&name.endsWith('-response.json')).length,1);
 }));

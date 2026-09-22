@@ -11,17 +11,35 @@ export function pcrPacket(capture,sources) {
     policySources:sources.filter(s=>s.merchantId===capture.merchantId).map(s=>({id:s.id,merchantId:s.merchantId,text:s.text})),
     checkpoints:capture.turns.filter(t=>t.submitted&&t.assessable).map(t=>({turn:t.turn,question:t.question,response:t.reply,expectedOutcome:`Address the shopper's request: ${t.question}`,attempted:true,assessable:true})) }] };
 }
-export function validateAutomatedEvidence(evidence,{providers,protocolSnapshotSha256,authorizedReuse={captures:[],sources:[],judgments:[]},approvedAt,now=new Date(),upstream}) {
+// Prior approvals are provided by the server from immutable roster amendments, never from evidence.
+export function evidenceDateValidator({providers,protocolSnapshotSha256,approvedAt,priorApprovals=/** @type {any[]} */([]),now=new Date()}) {
+  const current=+new Date(approvedAt);
+  if(!Number.isFinite(current)||current>+now)throw Error('Invalid current approval date');
+  const windows=new Map();
+  for(const approval of priorApprovals) {
+    const provider=providers.find(p=>p.name===approval.provider?.name&&p.website===approval.provider?.website);
+    const store=provider?.customers.find(s=>same(s,approval.store));
+    const date=+new Date(approval.approvedAt),until=+new Date(approval.approvedUntil);
+    if(!store||merchantId(store)!==approval.merchantId||approval.protocolSnapshotSha256!==protocolSnapshotSha256||!Number.isFinite(date)||!Number.isFinite(until)||until<date||until>current||date>current||!approval.amendmentId||!approval.archiveSha256)throw Error('Invalid scoped prior approval');
+    windows.set(approval.merchantId,[...(windows.get(approval.merchantId)||[]),[date,until]]);
+  }
+  return (value,reused,merchant)=>{
+    const date=+new Date(value),recent=date>=+now-30*86400000;
+    const authorized=reused?recent:date>=current||(recent&&(windows.get(merchant)||[]).some(([from,until])=>date>=from&&date<=until));
+    if(!Number.isFinite(date)||date>+now||!authorized)throw Error('Evidence outside authorized date range');
+  };
+}
+export function validateAutomatedEvidence(evidence,{providers,protocolSnapshotSha256,authorizedReuse={captures:[],sources:[],judgments:[]},approvedAt,priorApprovals=/** @type {any[]} */([]),now=new Date(),upstream}) {
   if(evidence?.schema!==EVIDENCE_SCHEMA||evidence.protocol!=='policy-resolution-v1'||evidence.protocolSnapshotSha256!==protocolSnapshotSha256||!same(evidence.executionProfile,EXECUTION_PROFILE)||!same(evidence.questionManifest,QUESTION_MANIFEST))throw Error('Unsupported or unfrozen automated evidence');
   if (!same(evidence.providers,providers)) throw Error('Provider metadata differs from approved request');
   const plan=makePolicyPlan(providers), captures=evidence.captures, judgments=evidence.judgments, sources=evidence.sources;
   if(!Array.isArray(captures)||captures.length!==plan.length||!Array.isArray(judgments)||judgments.length!==plan.filter(c=>!c.guardrail).length||!Array.isArray(sources)||!sources.length||sources.length>providers.length*50)throw Error('Incomplete capture or judgment cohort');
   if(new Set(captures.map(c=>c.id)).size!==captures.length||new Set(judgments.map(j=>j.captureId)).size!==judgments.length||new Set(sources.map(s=>s.id)).size!==sources.length)throw Error('Duplicate evidence');
-  const freshDate=(value,reused)=>{const date=+new Date(value);if(!Number.isFinite(date)||date>+now||date<(reused?+now-30*86400000:+new Date(approvedAt)))throw Error('Evidence outside authorized date range');};
+  const freshDate=evidenceDateValidator({providers,protocolSnapshotSha256,approvedAt,priorApprovals,now});
   for(const s of sources){
     const store=providers.flatMap(p=>p.customers).find(st=>merchantId(st)===s.merchantId);
     if(!store||typeof s.text!=='string'||!s.text.trim()||s.text.length>100000||s.sha256!==sha256(s.text)||!(publicHost(s.url)===publicHost(store.website)||publicHost(s.url).endsWith('.'+publicHost(store.website))))throw Error('Invalid independent merchant policy source');
-    freshDate(s.retrievedAt,authorizedReuse.sources.some(x=>same(x,s)));
+    freshDate(s.retrievedAt,authorizedReuse.sources.some(x=>same(x,s)),s.merchantId);
   }
   const records=[],guardrails=[],sessions=new Set();
   for(const expected of plan){
@@ -29,7 +47,7 @@ export function validateAutomatedEvidence(evidence,{providers,protocolSnapshotSh
     if(!c||c.vendor!==expected.provider||c.store!==expected.store||c.url!==new URL(expected.website).href||c.mode!==expected.mode||c.theme!==expected.theme||c.merchantId!==expected.merchantId||c.turns?.length!==expected.planned)throw Error('Capture differs from approved cohort');
     const raw=structuredClone(c);delete raw.source_capture_sha256;
     if(c.source_capture_sha256!==sha256(JSON.stringify(raw)))throw Error('Capture hash mismatch');
-    const reused=authorizedReuse.captures.some(x=>same(x,c));freshDate(c.captured_at,reused);
+    const reused=authorizedReuse.captures.some(x=>same(x,c));freshDate(c.captured_at,reused,c.merchantId);
     if(!c.capture_metadata?.provider_attribution?.verified||!observedProviderUrls(provider,c.capture_metadata.provider_attribution.observed_urls||[]).length)throw Error('Unverified provider attribution');
     for(const [i,t]of c.turns.entries()) {
       if(t.turn!==i+1||t.question!==expected.questions[i]||typeof t.reply!=='string'||typeof t.submitted!=='boolean'||typeof t.assessable!=='boolean'||!['submitted','not_submitted','unknown'].includes(t.observationState)||t.observationState==='not_submitted'&&t.submitted||t.observationState==='submitted'&&!t.submitted||t.assessable&&(!t.submitted||t.observationState!=='submitted'))throw Error('Invalid checkpoint observation mask');
@@ -61,7 +79,7 @@ export function validateAutomatedEvidence(evidence,{providers,protocolSnapshotSh
       calls.push([j.pcr.primary,makeRequest(packet,'primary')],[j.pcr.audit,makeRequest(packet,'audit')]);
       merged=mergeBlindJudgments(packet,j.pcr.primary.value,j.pcr.audit.value).conversations[0];
     }else if(j.pcr!==null)throw Error('Unassessable capture must not receive PCR judgments');
-    for(const [call,request]of calls){checkCallMetadata(call.metadata,request,sessions);freshDate(call.metadata.created_at,reusedJudge);}
+    for(const [call,request]of calls){checkCallMetadata(call.metadata,request,sessions);freshDate(call.metadata.created_at,reusedJudge,c.merchantId);}
     const checks=result?Object.fromEntries(Object.entries(result.checks).map(([id,v])=>[id,{pass:v.pass,evidence:v.evidence}])):null;
     records.push({id:c.id,provider:c.vendor,store:c.store,merchantId:c.merchantId,mode:c.mode,theme:c.theme,planned:10,capturedAt:c.captured_at,rawSha256:c.source_capture_sha256,correctedCapture:false,policyIds:sources.filter(s=>s.merchantId===c.merchantId).map(s=>s.id),quality:result?.total??null,
       qualityEvidence:result?{total:result.total,checks,provenance:'fresh-automated-quality',auditCoverage:'Every criterion; full-transcript adversarial audit',criteria:Object.fromEntries(criteriaFor(c.mode).map(k=>[k.id,{pass:checks[k.id].pass,evidence:checks[k.id].evidence,weight:k.points,signalGate:k.signal_gate||null,signalSatisfied:!k.signal_gate||!!q.signals[k.signal_gate],awardedPoints:checks[k.id].pass&&(!k.signal_gate||q.signals[k.signal_gate])?k.points:0}]))}:null,latencyMs:c.turns.filter(t=>t.complete_ms!==null&&t.author_verified).map(t=>t.complete_ms),

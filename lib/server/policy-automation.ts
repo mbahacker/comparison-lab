@@ -1,3 +1,4 @@
+import { priorRosterApprovals } from './roster-amendments.ts';
 import fs from 'node:fs';
 import path from 'node:path';
 import { config } from './config.ts';
@@ -100,7 +101,7 @@ export async function completePolicyJob(input:Row,job:Row,row:Row,user:Row, opti
   const authorizedReuse=resolvePolicyReuse(job.reuse_json?JSON.parse(job.reuse_json):null,providers,snapshot);
   const upstream=options.upstream || await loadUpstream(path.join(config().dataDir,'reference-cache'));
   let validated;
-  try{validated=validateAutomatedEvidence(input.evidence,{providers,protocolSnapshotSha256:snapshot.sha256,authorizedReuse: authorizedReuse as any,approvedAt:row.reviewed_at,now:new Date(completedAt),upstream});}catch(error){throw new ApiError(422,`Policy evidence validation failed: ${error instanceof Error?error.message:'invalid evidence'}`);}
+  try{validated=validateAutomatedEvidence(input.evidence,{providers,protocolSnapshotSha256:snapshot.sha256,authorizedReuse: authorizedReuse as any,approvedAt:row.reviewed_at,priorApprovals:priorRosterApprovals(row,job),now:new Date(completedAt),upstream});}catch(error){throw new ApiError(422,`Policy evidence validation failed: ${error instanceof Error?error.message:'invalid evidence'}`);}
   const sourceHash=hash(bytes(input.evidence)),slug=`${providers.map((p:Row)=>toolId(p.website)).join('-vs-')}-${row.id.slice(0,8)}`;
   const methodText=fs.readFileSync(path.resolve('rubric/policy-method.md'),'utf8');
   const projection=projectPolicyStudy({...validated,slug,title:providers.map((p:Row)=>p.name).join(' vs. ')+': policy-resolution study',description:'Live storefront evaluation of policy-compliant resolution, answer quality and response speed.',preparedAt:completedAt,methodSha256:hash(methodText),sourceCommit:snapshot.rubricCommit,

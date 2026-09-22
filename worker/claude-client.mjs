@@ -2,6 +2,7 @@ import { WorkerError } from './protocol.mjs';
 import { trustedTransport } from './transport.mjs';
 import { request as httpRequest } from 'node:http';
 import { executionSettings, executionMetadata } from './execution-profile.mjs';
+import { judgeDiagnostic } from './judge-errors.mjs';
 
 export function claudeServiceConfiguration(env = process.env) {
   const key = env.JUDGE_SERVICE_SECRET || '';
@@ -50,7 +51,14 @@ export async function claudeStructuredResponse({ instructions, input, schema, mo
     body: JSON.stringify({ instructions, input, schema, model, ...execution }),
     signal: AbortSignal.any([AbortSignal.timeout(settings.transportTimeoutMs), ...(signal ? [signal] : [])]),
   }), { code: 'model_transport_failed', signal });
-  if (!response.ok) throw new WorkerError('model_request_failed', `Private judge returned ${response.status}`, response.status === 429 || response.status === 503 || response.status === 504);
+  if (!response.ok) {
+    let diagnostic = null;
+    try { diagnostic = judgeDiagnostic(response.status, await response.json()); }
+    catch { /* Missing, malformed or interrupted bodies cannot authorize a retry. */ }
+    const error = new WorkerError('model_request_failed', `Private judge returned ${response.status}${diagnostic ? ` (${diagnostic.code})` : ''}`, response.status === 429 || response.status === 503 || response.status === 504);
+    if (diagnostic) error.judgeDiagnostic = diagnostic;
+    throw error;
+  }
   const result = await trustedTransport(() => response.json(), { code: 'model_transport_failed', signal });
   if (!result?.value || result.metadata?.provider !== 'claude-cli' || result.metadata.requested_model !== model || typeof result.metadata.response_id !== 'string') throw new WorkerError('model_incomplete', 'Private judge returned an invalid result');
   if (settings.explicit && (result.metadata.model !== model || Object.entries(executionMetadata(settings)).some(([key, value]) => result.metadata[key] !== value))) throw new WorkerError('model_incomplete', 'Private judge execution metadata disagrees with the requested profile');

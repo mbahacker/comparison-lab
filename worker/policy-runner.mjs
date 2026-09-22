@@ -1,7 +1,8 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
-import { assertPolicyJob, EVIDENCE_SCHEMA, EXECUTION_PROFILE, QUESTION_MANIFEST, digest, merchantId } from './policy-contract.mjs';
-import { POLICY_EXECUTION } from './execution-profile.mjs';
+import { assertPolicyJob, EVIDENCE_SCHEMA, EXECUTION_PROFILE, QUESTION_MANIFEST, merchantId } from './policy-contract.mjs';
+import { createPolicyInvoker } from './policy-call-cache.mjs';
+import { validJudgeDiagnostic } from './judge-errors.mjs';
 import { WorkerError } from './protocol.mjs';
 import { startPublicProxy, validatePublicUrl } from './network.mjs';
 import { launchCaptureBrowser, captureConversation } from './capture.mjs';
@@ -43,16 +44,7 @@ export async function runPolicyJob(job,api,{rootDirectory=process.env.WORKER_DAT
   const evidence={schema:EVIDENCE_SCHEMA,protocol:'policy-resolution-v1',protocolSnapshotSha256:job.protocol.sha256,executionProfile:EXECUTION_PROFILE,questionManifest:QUESTION_MANIFEST,providers:job.providers,captures:[],sources:[],judgments:[]};
   const save=()=>fs.writeFile(path.join(directory,'evidence.private.json'),JSON.stringify(evidence,null,2),{mode:0o600});
   const cacheDirectory=path.resolve(directory,'..','validated-call-cache');await fs.mkdir(cacheDirectory,{recursive:true,mode:0o700});
-  const invoke=async (request,stage)=>{
-    control.signal.throwIfAborted(); const name=path.join(cacheDirectory,`${stage}-${digest(request)}`),requestFile=name+'-request.json',responseFile=name+'-response.json';
-    try {const cached=JSON.parse(await fs.readFile(responseFile,'utf8'));if(cached.metadata.requestSha256!==digest(request))throw new WorkerError('resume_conflict','Retained model response does not match its request');return cached;}
-    catch(error){if(error.code!=='ENOENT')throw error;}
-    try {await fs.access(requestFile);throw new WorkerError('model_outcome_unknown','A prior model request has no retained response. Operator reconciliation is required; it will not be replayed automatically.');}catch(error){if(error.code!=='ENOENT')throw error;}
-    await fs.writeFile(requestFile,JSON.stringify({request,sha256:digest(request),startedAt:new Date().toISOString()}),{mode:0o600,flag:'wx'});
-    const result=await call({...request,input:request.input||JSON.parse(request.prompt),...POLICY_EXECUTION,signal:control.signal});
-    const receipt={value:result.value,metadata:{...result.metadata,requestSha256:digest(request)}};
-    await fs.writeFile(responseFile,JSON.stringify(receipt),{mode:0o600,flag:'wx'});return receipt;
-  };
+  const invoke=createPolicyInvoker({cacheDirectory,fencingToken:job.fencingToken,signal:control.signal,call});
   try{
     const upstream=await loadReference();proxy=await startProxy();browser=await launchBrowser(proxy.url);
     control.signal.addEventListener('abort',()=>browser.close().catch(()=>{}),{once:true});
@@ -81,9 +73,9 @@ export async function runPolicyJob(job,api,{rootDirectory=process.env.WORKER_DAT
         evidence.judgments.push({captureId:captured.id,rawSha256:captured.source_capture_sha256,quality,pcr:pcrResult});await save();
       }
     }
-    validateAutomatedEvidence(evidence,{providers:job.providers,protocolSnapshotSha256:job.protocol.sha256,authorizedReuse:reuse,approvedAt:job.approvedAt,upstream});
+    validateAutomatedEvidence(evidence,{providers:job.providers,protocolSnapshotSha256:job.protocol.sha256,authorizedReuse:reuse,approvedAt:job.approvedAt,priorApprovals:job.priorApprovals,upstream});
     await api('complete',{...lease,evidence});return{status:'completed',jobId:job.id};
-  }catch(error){const cause=control.signal.reason||error,code=/^[a-z_]+$/.test(cause.code||'')?cause.code:'policy_validation_failed';await fs.writeFile(path.join(directory,'failure.json'),JSON.stringify({code,message:cause.message,at:new Date().toISOString()}),{mode:0o600});
+  }catch(error){const cause=control.signal.reason||error,code=/^[a-z_]+$/.test(cause.code||'')?cause.code:'policy_validation_failed',judge=validJudgeDiagnostic(cause.judgeDiagnostic);await fs.writeFile(path.join(directory,'failure.json'),JSON.stringify({code,message:cause.message,at:new Date().toISOString(),...(judge?{judge}:{})}),{mode:0o600});
     if(code!=='lease_lost')await api('fail',{...lease,code,message:`Evaluation stopped (${code}); private evidence retained.`,retryable:false}).catch(()=>{});return{status:'failed',code,jobId:job.id};
   }finally{clearInterval(heartbeat);clearTimeout(timer);await browser?.close().catch(()=>{});await proxy?.close();}
 }

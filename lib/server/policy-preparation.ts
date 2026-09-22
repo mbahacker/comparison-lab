@@ -6,6 +6,7 @@ import { config } from './config.ts';
 import { hash, iso, token, safeEqual, providersInput } from './security.ts';
 import { enqueueMail } from './mail.ts';
 import { ApiError, type Row } from './model.ts';
+import { validateRetailProof, providerOwned, reviewedPair } from '../../worker/retail-discovery.mjs';
 import { observedProviderUrls, publicHost } from '../../worker/provider-fingerprint.mjs';
 const json=(data:unknown)=>Response.json(data,{headers:{'cache-control':'private, no-store'}});
 export function queuePolicyPreparation(id:string,providers:Row[],user:Row) {
@@ -25,11 +26,16 @@ export function validateDiscoveries(input:Row,original:Row[],startedAt:string) {
     const old=original[index];
     if(p.name!==old.name||p.website!==old.website||old.customers.some((s:Row,i:number)=>p.customers[i].name!==s.name||p.customers[i].website!==s.website))throw new ApiError(422,'Research cannot change submitted storefronts.');
     for(const [i,store]of p.customers.entries()){
+      if(providerOwned(p,store.website))throw new ApiError(422,'Provider-owned sites cannot be customer storefronts.');
       const proofs=discoveries.filter(d=>d.providerWebsite===p.website&&d.storeWebsite===store.website);const proof=proofs[0];
       if(proofs.length!==1||proof.verification!=='live-provider-fingerprint'||!Array.isArray(proof.observedProviderUrls)||!observedProviderUrls(p,proof.observedProviderUrls).length||typeof proof.sourceText!=='string'||proof.sourceText.length>100000||hash(proof.sourceText)!==proof.sourceSha256)throw new ApiError(422,'Missing or unverified deployment evidence.');
       const date=Date.parse(proof.retrievedAt);if(!Number.isFinite(date)||date<Date.parse(startedAt)||date>Date.now())throw new ApiError(422,'Research evidence is not from this preparation.');
       if(i<3){if(publicHost(proof.sourceUrl)!==publicHost(store.website))throw new ApiError(422,'Submitted storefront proof is from another site.');}
-      else if(publicHost(proof.sourceUrl)!==publicHost(p.website)||!Array.isArray(proof.sourceLinks)||!proof.sourceLinks.some((url:string)=>{try{return publicHost(url)===publicHost(store.website);}catch{return false;}}))throw new ApiError(422,'Additional storefront must be linked from a published provider customer source.');
+      else if(publicHost(proof.sourceUrl)!==publicHost(p.website)||!Array.isArray(proof.sourceLinks)||(!proof.sourceLinks.some((url:string)=>{try{return publicHost(url)===publicHost(store.website);}catch{return false;}})&&!reviewedPair(p,proof.sourceUrl,store.website)))throw new ApiError(422,'Additional storefront requires a published provider customer source and linked or reviewed merchant identity.');
+      if(i>=3){
+        if(!validateRetailProof(p,store,proof)||hash(proof.storefrontText)!==proof.storefrontSha256)throw new ApiError(422,'Additional storefront requires customer-specific retail and live commerce evidence.');
+        const observedAt=Date.parse(proof.storefrontRetrievedAt);if(!Number.isFinite(observedAt)||observedAt<Date.parse(startedAt)||observedAt>Date.now())throw new ApiError(422,'Storefront observation is not from this preparation.');
+      }
     }
   }
   return providers;
@@ -61,7 +67,9 @@ export async function handlePreparation(request:Request,parts:string[]) {
       const code=['research_incomplete','research_unverified','research_timeout'].includes(input.code)?input.code:'research_failed';
       db().prepare("UPDATE preparation_jobs SET state='needs_review',error=?,lease_token_hash=NULL,lease_expires_at=NULL,updated_at=? WHERE id=?").run(code,iso(),job.id);
       db().prepare("UPDATE requests SET status='needs_review',error='Could not verify five storefront deployments. The operator must complete the research before evaluation.',updated_at=? WHERE id=?").run(iso(),row.id);
-      enqueueMail(`preparation:${job.id}:paused:${job.attempt}`,config().adminEmail,`Storefront research needs attention: ${JSON.parse(row.providers_json).map((p:Row)=>p.name).join(' vs. ')}`,`The research stage stopped (${code}) before any chat testing. Inspect the retained research evidence and supply verified deployments before approval.\n\nRequest: ${row.id}\n\nAlhena Research Lab`);return{ok:true,status:'needs_review'};
+      const host=typeof input.storefrontHost==='string'&&/^(?:[a-z0-9-]+\.)+[a-z]{2,63}$/.test(input.storefrontHost)&&JSON.parse(row.providers_json).some((p:Row)=>p.customers.some((s:Row)=>publicHost(s.website)===input.storefrontHost))?input.storefrontHost:null;
+      const reason=code==='research_unverified'?`The declared tool could not be verified on ${host||'a submitted storefront'} after the browser setup and widget-loading checks.`:code==='research_incomplete'?'Two additional retail storefronts could not be verified with both customer-story and live commerce evidence.':code==='research_timeout'?'The bounded storefront research exceeded its time limit.':'The research worker failed; its private diagnostic receipt has been retained.';
+      enqueueMail(`preparation:${job.id}:paused:${job.fencing_token}`,config().adminEmail,`Storefront research needs attention: ${JSON.parse(row.providers_json).map((p:Row)=>p.name).join(' vs. ')}`,`The research stage stopped (${code}) before any chat testing.\n\n${reason}\n\nInspect the retained research evidence and supply verified deployments before approval.\n\nRequest: ${row.id}\n\nAlhena Research Lab`);return{ok:true,status:'needs_review'};
     }
     if(action!=='complete')throw new ApiError(404,'Preparation endpoint not found.');
     const providers=validateDiscoveries(input,JSON.parse(row.providers_json),job.created_at),raw=token(),now=iso();
@@ -70,7 +78,8 @@ export async function handlePreparation(request:Request,parts:string[]) {
     db().prepare("UPDATE requests SET providers_json=?,status='pending_review',review_token_hash=?,review_expires_at=?,updated_at=?,error=NULL WHERE id=?").run(JSON.stringify(providers),hash(raw),Date.now()+604800000,now,row.id);
     db().prepare("UPDATE preparation_jobs SET state='prepared',lease_token_hash=NULL,lease_expires_at=NULL,completion_hash=?,completion_token_hash=?,updated_at=? WHERE id=?").run(hash(JSON.stringify({providers:input.providers,discoveries:input.discoveries})),hash(input.leaseToken),now,job.id);
     const user=db().prepare('SELECT name,email FROM users WHERE id=?').get(row.user_id) as Row;
-    enqueueMail(`request:${row.id}:review`,config().adminEmail,`Review requested: ${providers.map(p=>p.name).join(' vs. ')}`,`The submitted three storefronts and two researched deployments per tool are ready for your review.\n\nRequester: ${user.name} <${user.email}>\n\n${providers.map(p=>`${p.name}:\n${p.customers.map(s=>`${s.name}: ${s.website}`).join('\n')}`).join('\n\n')}\n\nConfirm all five deployments before approving. Approval authorizes up to ${providers.length*515} chat turns, all ten core themes, blind policy-resolution audit, and automatic publication after server validation.\n\n${config().appUrl}/review/${raw}\n\nOpening the link does not approve the evaluation.\n\nAlhena Research Lab`);
+    const amended=(db().prepare('SELECT COUNT(*) AS n FROM roster_amendments WHERE request_id=?').get(row.id) as Row).n;
+    enqueueMail(amended?`request:${row.id}:review:amendment:${job.fencing_token}`:`request:${row.id}:review`,config().adminEmail,`Review requested: ${providers.map(p=>p.name).join(' vs. ')}`,`${amended?'This corrects the previous roster. Approval retains completed evidence only for the unchanged original three storefronts, with original dates and the 30-day limit. No removed storefront evidence will be used.\n\n':''}The submitted three storefronts and two researched deployments per tool are ready for your review.\n\nRequester: ${user.name} <${user.email}>\n\n${providers.map(p=>`${p.name}:\n${p.customers.map(s=>`${s.name}: ${s.website}`).join('\n')}`).join('\n\n')}\n\nConfirm all five deployments before approving. Approval authorizes up to ${providers.length*515} chat turns, all ten core themes, blind policy-resolution audit, and automatic publication after server validation.\n\n${config().appUrl}/review/${raw}\n\nOpening the link does not approve the evaluation.\n\nAlhena Research Lab`);
     return{ok:true,status:'pending_review'};
   }));
 }

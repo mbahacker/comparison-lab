@@ -13,6 +13,7 @@ type Review = {
   requester: { name: string; email: string };
   expiresAt: string;
   decided: boolean;
+  rosterAmendment?: { id: string; created_at: string } | null;
   reuse?: ReusePreview & { existingTool?: ExistingTool };
 };
 export function AdminReview({ token }: { token: string }) {
@@ -52,6 +53,7 @@ export function AdminReview({ token }: { token: string }) {
       <h2>{data.request.providers.map(provider => provider.name).join(" vs. ")}</h2>
       <p>Requested by <strong>{data.requester.name}</strong> · {data.requester.email}<br />Submitted {date(data.request.createdAt)}</p>
       <ComparisonDetails vendors={data.request.providers} />
+      {data.rosterAmendment && <div className="notice"><p>This corrects a previously approved storefront list. Completed evidence for unchanged original storefronts is retained with its original dates, within 30 days. Removed storefronts are excluded. Approval resumes the existing run and only performs missing work.</p></div>}
       {data.request.notes && <div className="request-scope"><strong>Requester’s context</strong><p>{data.request.notes}</p></div>}
       {data.decided ? <div className="notice"><Check size={18} /><div>
         <p>Your decision is saved. {data.request.status === "queued" ? "The approved run is queued." : data.request.status === "published" ? "The completed analysis is available." : data.request.status === "rejected" ? "The request was declined." : `Current request status: ${data.request.status.replaceAll("_", " ")}.`} Requester updates are sent by email.</p>

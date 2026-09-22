@@ -9,6 +9,7 @@ import { CLI_VERSION, JudgeError, runClaude } from './cli.mjs';
 import { resultSchema } from '../benchmark/policy-judge.mjs';
 import { executionSettings, POLICY_TRANSPORT_TIMEOUT_MS } from '../worker/execution-profile.mjs';
 import { schemaFor, qualityAuditSchema } from '../worker/policy-quality-spec.mjs';
+import { judgeDiagnostic } from '../worker/judge-errors.mjs';
 
 const schemas = ['shopping', 'support'].flatMap(mode => [false, true].map(audit => JSON.stringify(verdictSchema(mode, audit))));
 const policyQualitySchemas = ['shopping', 'support'].flatMap(mode => [schemaFor(mode), qualityAuditSchema(mode)].map(schema => JSON.stringify(schema)));
@@ -64,7 +65,10 @@ export function createJudgeServer({ token, secret, models, run = runClaude }) {
       if (controller.signal.aborted) throw new JudgeError('judge_cancelled', 499);
       const result = await run(request, { token, signal: controller.signal, timeoutMs: settings.timeoutMs });
       send(200, result);
-    } catch (error) { send(error instanceof JudgeError ? error.status : 500, { error: error instanceof JudgeError ? error.code : 'judge_failed' }); }
+    } catch (error) {
+      const diagnostic = error instanceof JudgeError && judgeDiagnostic(error.status, { error: error.code });
+      send(diagnostic ? diagnostic.status : 500, { error: diagnostic ? diagnostic.code : 'judge_failed' });
+    }
     finally { clearTimeout(bodyTimer); res.off('close', abort); req.off('aborted', abort); active = false; }
   });
   server.requestTimeout = POLICY_TRANSPORT_TIMEOUT_MS; server.headersTimeout = 10000; server.keepAliveTimeout = 5000;

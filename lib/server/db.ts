@@ -60,6 +60,11 @@ export function db() {
       available_at INTEGER NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL, error TEXT,
       completion_hash TEXT, completion_token_hash TEXT
     );
+    CREATE TABLE IF NOT EXISTS roster_amendments (
+      id TEXT PRIMARY KEY, request_id TEXT NOT NULL REFERENCES requests(id),
+      job_id TEXT NOT NULL REFERENCES jobs(id), snapshot_json TEXT NOT NULL,
+      snapshot_sha256 TEXT NOT NULL, created_at TEXT NOT NULL
+    );
     CREATE TABLE IF NOT EXISTS policy_releases (
       slug TEXT PRIMARY KEY, manifest_json TEXT NOT NULL, source_path TEXT,
       source_sha256 TEXT, request_id TEXT, generation_key TEXT UNIQUE
