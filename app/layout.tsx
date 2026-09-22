@@ -13,7 +13,7 @@ export const metadata: Metadata = {
     siteName: "Alhena Research Lab",
     title: "Put ecommerce AI to the test",
     description:
-      "Explore ecommerce AI tool evaluations, compare shopping and support quality, and analyze your tool using the same published rubric.",
+      "Explore the latest ecommerce AI studies: shopping and support composites, policy-compliant resolution, quality, speed and the evidence behind each score.",
   },
   twitter: { card: "summary_large_image" },
   title: {
@@ -21,7 +21,7 @@ export const metadata: Metadata = {
     template: "%s · Alhena Research Lab",
   },
   description:
-    "Explore evaluated ecommerce AI tools, public quality scores and evidence-backed comparison reports. Submit one tool for analysis using the same published rubric.",
+    "Compare ecommerce AI using the latest published research. Explore shopping and support composites, separate resolution, quality and speed scores, and conversation evidence.",
   icons: {
     icon: "/brand/alhena-mark.svg",
     shortcut: "/brand/alhena-mark.svg",

@@ -1,10 +1,12 @@
 import type { MetadataRoute } from 'next';
 import { getToolLibrary } from '@/lib/server/reuse';
+import { getResearchLibrary } from '@/lib/server/research-library';
 import { listReports } from '@/lib/server/evidence';
 import { publicUrl } from '@/lib/server/public-data';
-import { listPolicyStudies } from '@/lib/server/policy-studies';
-export const dynamic='force-dynamic';
-export default function sitemap():MetadataRoute.Sitemap{
- const library=getToolLibrary();
- return [{url:publicUrl('/')},{url:publicUrl('/methodology')},{url:publicUrl('/studies')},{url:publicUrl('/studies/policy-resolution-v1')},...listPolicyStudies().map(s=>({url:publicUrl(`/studies/${s.slug}`),lastModified:new Date(s.publishedAt)})),...library.tools.map(t=>({url:publicUrl(`/tools/${t.id}`),lastModified:new Date(t.evaluatedAt)})),...listReports().map(r=>({url:publicUrl(`/reports/${r.slug}`),lastModified:new Date(r.publishedAt)}))];
+export const dynamic = 'force-dynamic';
+export default function sitemap(): MetadataRoute.Sitemap {
+  const research = getResearchLibrary();
+  const profiles = new Map(getToolLibrary().tools.map(t => [t.id, { url: publicUrl(`/tools/${t.id}`), lastModified: new Date(t.evaluatedAt) }]));
+  for (const tool of research.tools) profiles.set(tool.id, { url: publicUrl(`/tools/${tool.id}`), lastModified: new Date(tool.publishedAt) });
+  return [{ url: publicUrl('/') }, { url: publicUrl('/methodology') }, { url: publicUrl('/methodology/quality-pilot-v1') }, { url: publicUrl('/studies') }, { url: publicUrl('/studies/policy-resolution-v1') }, ...research.studies.map(s => ({ url: publicUrl(`/studies/${s.slug}`), lastModified: new Date(s.publishedAt) })), ...profiles.values(), ...listReports().map(r => ({ url: publicUrl(`/reports/${r.slug}`), lastModified: new Date(r.publishedAt) }))];
 }

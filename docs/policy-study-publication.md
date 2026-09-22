@@ -1,8 +1,10 @@
-# Policy-study publication scaffold
+# Policy-study publication and current research library
 
-This is unpublished integration scaffolding, not completed scoring or a production worker upgrade. The catalog is empty unless an operator deliberately installs an approved release. No existing study, pilot score or private evidence is copied by this code.
+The catalog contains only releases deliberately installed after completed scoring, review and publication approval. The website reads these immutable releases; changing the presentation does not recalculate scores or upgrade the production evaluation worker.
 
-`/studies` lists approved policy-resolution studies; `/studies/policy-resolution-v1` describes the versioned methodology, with study completion and publication status kept separate. `/studies/[slug]` exposes only the whitelisted public summary and JSON-LD. `/study-scores.json` exposes that same summary contract for machines. The homepage, sitemap and llms.txt discover this separate namespace. Existing `/reports`, tool-library, quality-pilot jobs, 30-day reuse and automatic publication are unchanged.
+`/studies` lists approved policy-resolution studies; `/studies/policy-resolution-v1` describes the versioned methodology. `/studies/[slug]` exposes only the whitelisted public summary and JSON-LD. `/study-scores.json` exposes that same summary contract for machines. The homepage, current tool profiles and `/tool-scores.json` v2 use the newest approved compatible study per provider, selected by original capture end date, then publication date and slug. A missing metric stays null; it is never backfilled from an older study. Components and composites retain their distinct labels.
+
+Original `/reports` and quality-only profiles remain in the historical archive. `/quality-pilot-scores.json` preserves the original v1 machine summary and `/methodology/quality-pilot-v1` preserves the pilot method. `/methodology` is a hub that leads with the current policy-resolution method and explains both scopes. The submission form and production worker still use quality-pilot-v1, explicitly disclosed before submission; their three-storefront jobs, 30-day reuse and automatic publication are unchanged. Private evidence remains protected under both methods.
 
 ## Release input
 

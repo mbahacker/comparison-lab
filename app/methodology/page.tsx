@@ -1,176 +1,29 @@
-import { RubricWeights } from "@/components/lab/rubric-weights";
-import fs from "node:fs";
-import path from "node:path";
-export const metadata = { title: "The published rubric" };
+import Link from 'next/link';
+import { POLICY_PROTOCOL as method } from '@/benchmark/policy-resolution.mjs';
+
+export const metadata = {
+  title: 'Research methodology and scoring',
+  description: 'How Alhena Research Lab measures policy-compliant resolution, answer quality and speed, and combines them into shopping and support composite scores.',
+  alternates: { canonical: '/methodology' },
+};
+
 export default function Page() {
-  const seed = JSON.parse(
-    fs.readFileSync(
-      path.join(
-        process.cwd(),
-        "content/reports/alhena-vs-gorgias-2026-09-20/evidence.json",
-      ),
-      "utf8",
-    ),
-  );
-  const criteria = JSON.parse(
-    fs.readFileSync(path.join(process.cwd(), "rubric/criteria.json"), "utf8"),
-  ).criteria as {
-    id: string;
-    mode: string;
-    dimension: string;
-    points: number;
-    passes_when: string;
-    signal_gate: string | null;
-  }[];
-  return (
-    <main id="main" className="shell method-page">
-      <p className="eyebrow">THE METHOD</p>
-      <h1>
-        A fixed rubric.
-        <br />
-        An open evidence record.
-      </h1>
-      <p className="intro">
-        Alhena Research Lab applies Gorgias’s published shopping and support quality
-        criteria. The weights stay fixed, and every decision is backed by a
-        captured response.
-      </p>
-      <div className="method-grid">
-        <div className="method-card">
-          <h3>One tool at a time</h3>
-          <p>
-            One tool, three selected customer storefronts. One ten-turn shopping
-            conversation and one ten-turn returns conversation per storefront:
-            six conversations, 60 turns and 78 criterion decisions per tool.
-          </p>
-        </div>
-        <div className="method-card">
-          <h3>Separate judging and audit</h3>
-          <p>
-            An AI judge scores each criterion. A separate AI audit reviews those
-            decisions. Code calculates the points using the published weights
-            and signal requirements.
-          </p>
-        </div>
-        <div className="method-card">
-          <h3>Fresh browser sessions</h3>
-          <p>
-            Newly captured conversations use a fresh browser
-            context. An unsupported widget, a human takeover or incomplete
-            evidence stops the run. The original pilot’s session limitations
-            remain disclosed.
-          </p>
-        </div>
-        <div className="method-card">
-          <h3>Validation before publication</h3>
-          <p>
-            Approved runs publish automatically only after checking
-            completeness, evidence references, score calculations and audit
-            coverage. Failed runs remain private; missing answers do not become
-            invented scores.
-          </p>
-        </div>
-      </div>
-      <p className="method-note">
-        This is a quality pilot, not the full Gorgias benchmark or its composite
-        leaderboard. It uses the everyday-value and returns themes. No
-        automation or speed ranking is claimed. Three conversations per provider
-        per lane do not meet the original benchmark’s 15-conversation threshold.
-        Selected storefronts and deployment configurations limit generalization.
-      </p>
-      <RubricWeights criteria={criteria} />
-      {["shopping", "support"].map((mode) => (
-        <section key={mode}>
-          <h2>
-            {mode === "shopping"
-              ? "Shopping · 16 criteria"
-              : "Support · 10 criteria"}{" "}
-            · 100 points
-          </h2>
-          <div className="data-table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Criterion</th>
-                  <th>Points</th>
-                  <th>Published pass condition</th>
-                </tr>
-              </thead>
-              <tbody>
-                {criteria
-                  .filter((c) => c.mode === mode)
-                  .map((c) => (
-                    <tr key={c.id}>
-                      <td>
-                        <strong>{c.id}</strong>
-                        <br />
-                        <small>{c.dimension}</small>
-                      </td>
-                      <td>{c.points}</td>
-                      <td className="rubric-condition">
-                        {c.passes_when}
-                        {c.signal_gate && (
-                          <p className="private-note">
-                            Required signal: {c.signal_gate}
-                          </p>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ))}
-      <h2>Source and version</h2>
-      <p className="method-note">
-        The source rubric is published by Gorgias. Alhena Research Lab is an
-        Alhena-operated project and is not endorsed or certified by Gorgias.{" "}
-        <a href={seed.study.rubric_url} target="_blank" rel="noreferrer">
-          Read the canonical rubric
-        </a>
-        .
-      </p>
-      <p className="private-note">
-        Pinned source commit: <code>{seed.study.source_commit}</code>. Protocol:{" "}
-        <code>quality-pilot-v1</code>.
-      </p>
-      <h2>What a score does not prove</h2>
-      <div className="prose-content">
-        <p>
-          The tool library shows one complete three-storefront evaluation for each
-          tool. After a new evaluation passes validation, comparison reports are
-          assembled against other compatible, recent tool evaluations. Each pair
-          contains 12 source conversations and 120 captured turns; composing the
-          report does not run new conversations or judge them again. Repeated use
-          in comparison reports does not increase a tool’s sample size.
-        </p>
-        <p>
-          Compatible analysis may be reused for 30 days from its original capture
-          date. Reused conversations link to their source report and retain their
-          original dates and limitations. Republishing does not reset this window.
-          Only missing or expired conversations are evaluated again.
-        </p>
-        <p>
-          The imported September 20 study did not record per-turn AI-author proof.
-          Its attribution is inherited from the original report when reused;
-          no new author verification is performed. New automated captures require
-          positive AI-author evidence before publication.
-        </p>
-        <p>
-          A high score describes how these captured conversations satisfied the
-          specified rubric. It does not establish that a provider is universally
-          better, that all factual claims are correct, or that a storefront will
-          produce the same responses every time.
-        </p>
-        <p>
-          Separate AI judging and auditing are parts of this commissioned
-          evaluation. They do not make Alhena Research Lab an independent research
-          institution. Full transcripts, scoring details, source checks and
-          limitations accompany each completed report. Summaries and this rubric
-          are public; detailed evidence requires a verified work email.
-        </p>
-      </div>
-    </main>
-  );
+  return <main id="main" className="shell method-page">
+    <p className="eyebrow">ALHENA RESEARCH LAB · METHODOLOGY</p>
+    <h1>What the scores measure.</h1>
+    <p className="intro">The current research library uses <strong>policy-resolution-v1</strong>. Shopping and support composite scores combine three distinct measures: policy-compliant resolution, answer quality and full-answer speed.</p>
+    <div className="method-grid">
+      <section className="method-card"><h2>Policy-compliant resolution</h2><p>Did the assistant give a correct answer or the actionable next step required by the merchant’s published policy? A required handoff can earn credit when the response fulfills the request under that policy.</p></section>
+      <section className="method-card"><h2>Answer quality</h2><p>The original 26 published quality criteria, with fixed weights: 16 for shopping and 10 for support. Quality is a separate component, not the composite score.</p></section>
+      <section className="method-card"><h2>Full-answer speed</h2><p>Time until the full answer is complete. The speed score ranges from 100 at three seconds to zero at 22 seconds, bounded between zero and 100.</p></section>
+      <section className="method-card"><h2>Evidence and audit</h2><p>Every assessed resolution checkpoint receives a primary judgment and a separate blind audit. Both must award valid evidence-backed attainment for verified credit. Disagreements and exclusions remain visible.</p></section>
+    </div>
+    <section><h2>How the composite is calculated</h2><div className="data-table-wrap"><table className="data-table"><caption>Composite weights by lane</caption><thead><tr><th>Lane</th><th>Policy-compliant resolution</th><th>Answer quality</th><th>Speed</th></tr></thead><tbody>{(['shopping', 'support'] as const).map(lane => {
+      const weights = method[lane === 'shopping' ? 'shoppingWeights' : 'supportWeights'];
+      return <tr key={lane}><th>{lane === 'shopping' ? 'Shopping' : 'Support'}</th><td>{weights.resolution * 100}%</td><td>{weights.quality * 100}%</td><td>{weights.speed * 100}%</td></tr>;
+    })}</tbody></table></div><p>Overall is the equal mean of the two unrounded lane composites, available only when both lanes meet the published coverage requirements.</p></section>
+    <section className="library-method-note"><h2>Sample and coverage</h2><p>Each provider has at least {method.minimumRegisteredStorefrontsPerProvider} registered storefronts and ten core themes per storefront. Headline lane composites require at least {method.minimumScorableConversationsPerLane} eligible conversations and {method.minimumObservedStorefrontsPerLane} storefronts with resolution observations. Each report shows the actual included and excluded sample.</p><p>These are selected public storefront sessions. Resolution can include a policy-prescribed next step; it does not establish a completed refund, account change or human-resolved case. Alhena commissions and operates this research.</p></section>
+    <div className="hero-actions"><Link className="button primary" href="/studies/policy-resolution-v1">Read the complete current methodology</Link><Link className="button outline-button" href="/studies">Browse the studies</Link></div>
+    <section className="library-section"><h2>Original quality pilot and submissions</h2><p>The earlier <strong>quality-pilot-v1</strong> reports retain their original scores and dates in the historical archive. They cover three storefronts and two question themes per tool, measuring quality only. Their scores are not combined with the current study’s composites.</p><p>The current “Analyze your tool” form requests this three-storefront quality evaluation. It does not automatically run the broader policy-resolution study. The form identifies that scope before submission.</p><div className="hero-actions"><Link className="button outline-button" href="/methodology/quality-pilot-v1">Quality-pilot method and all 26 criteria</Link><Link className="text-link" href="/#archive">Historical quality archive</Link></div></section>
+  </main>;
 }

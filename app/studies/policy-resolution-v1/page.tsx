@@ -62,7 +62,7 @@ export default function Page() {
 
     <h2>Publication and reuse</h2>
     <p>Alhena operates and commissions this research. It is not independent third-party certification or a universal vendor ranking. Public summaries and this method are open; detailed evidence uses a verified work email. The first revised results must be reviewed before publication. Partial scores are not presented as completed results.</p>
-    <p>Existing <Link href="/methodology">quality-pilot-v1 reports</Link> keep their original labels and are not silently combined with this method. Compatible evidence reuse is limited to {method.reuseDays} days from its original capture date. An approved study provides its exact hash-pinned method as a download.</p>
+    <p>Existing <Link href="/methodology/quality-pilot-v1">quality-pilot-v1 reports</Link> keep their original labels and are not silently combined with this method. Compatible evidence reuse is limited to {method.reuseDays} days from its original capture date. An approved study provides its exact hash-pinned method as a download.</p>
     <Link href="/studies">Back to policy-resolution studies</Link>
   </main>;
 }

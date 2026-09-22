@@ -164,7 +164,7 @@ export function RequestFlow({ initialProvider }: { initialProvider?: Pick<Vendor
           <p className="intro">
             One tool. Three customer storefronts.
             <br />
-            One published quality rubric.
+            A quality-only evaluation.
           </p>
           <ol className="steps">
             {[
@@ -184,13 +184,15 @@ export function RequestFlow({ initialProvider }: { initialProvider?: Pick<Vendor
           <div className="aside-note">
             <ShieldCheck size={22} />
             <p>
-              Every request is reviewed before testing starts. Approved
-              analyses use the same questions and scoring rules. Compatible
-              results become comparison reports without retesting each tool.
+              This form requests the three-storefront quality-pilot evaluation.
+              It does not automatically run the broader policy-resolution study
+              shown in the current results. Every request is reviewed before
+              testing starts; compatible quality-pilot results can be compared.
             </p>
-            <Link href="/methodology">
-              Read the methodology <ExternalLink size={13} />
+            <Link href="/methodology/quality-pilot-v1">
+              Read this evaluation’s methodology <ExternalLink size={13} />
             </Link>
+            <p><Link href="/methodology">Compare the research methods</Link></p>
           </div>
           {prior.length > 0 && (
             <div className="prior-requests">
@@ -375,11 +377,11 @@ export function RequestFlow({ initialProvider }: { initialProvider?: Pick<Vendor
           {step === 3 && (
             <div>
               <p className="eyebrow">STEP 03</p>
-              <h2 id="flow-heading">{preview?.existingTool ? "This tool already has a current analysis." : "Ready for review."}</h2>
+              <h2 id="flow-heading">{preview?.existingTool ? "This tool already has a reusable quality-pilot analysis." : "Ready for review."}</h2>
               <p className="muted">
                 {preview?.existingTool
-                  ? "All six conversations for these storefronts have eligible analysis from the last 30 days. Explore the tool’s results now."
-                  : "Check your tool, storefronts and planned work below. Each tool analysis covers six conversations and 60 turns under the published rubric."}
+                  ? "All six quality-pilot conversations for these storefronts have eligible analysis from the last 30 days. Their original source report is shown below."
+                  : "Check your tool, storefronts and planned work below. This quality-pilot analysis covers six conversations and 60 turns. It produces quality scores, not policy-resolution composites."}
               </p>
               {preview && <ReuseSummary preview={preview} />}
               <ComparisonDetails vendors={[provider]} />

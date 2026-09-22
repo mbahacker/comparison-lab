@@ -1,72 +1,95 @@
 "use client";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowRight, ArrowUpRight, BarChart3, ClipboardCheck, Globe2, Search, Table2 } from "lucide-react";
+import { ArrowRight, ArrowUpRight, BarChart3, ClipboardCheck, Globe2, Search } from "lucide-react";
 import { ReportSummary, ToolSummary, score, date } from "@/lib/client";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { PolicyStudySummary } from "@/lib/policy-study";
+import type { ResearchTool } from "@/lib/research-library";
+import { LatestResearchResults, researchCaptureDates } from "./latest-research-results";
 
 type Lane = "shopping" | "support";
-export function ReportLibrary({ tools, reports, studies = [] }: { tools: ToolSummary[]; reports: ReportSummary[]; studies?: PolicyStudySummary[] }) {
-  const [tab,setTab] = useState("tools"), [q,setQ] = useState(""), [view,setView] = useState("table"), [sort,setSort] = useState<"name"|Lane>("name");
-  useEffect(() => {
-    const restore = () => { const requested=location.hash.slice(1); if (["tools","comparisons","studies"].includes(requested)) {setTab(requested === "studies" && !studies.length ? "tools" : requested); document.getElementById("results")?.scrollIntoView();} };
-    restore(); window.addEventListener("hashchange",restore); return () => window.removeEventListener("hashchange",restore);
-  },[studies.length]);
-  const shownTools = tools.filter(t => `${t.name} ${t.website}`.toLowerCase().includes(q.toLowerCase())).sort((a,b) => sort === "name" ? a.name.localeCompare(b.name) : b.scores[sort]-a.scores[sort] || a.name.localeCompare(b.name));
+type LibraryTab = "tools" | "comparisons" | "archive";
+type LibraryProps = { tools: ToolSummary[]; reports: ReportSummary[]; studies?: PolicyStudySummary[]; latestTools?: ResearchTool[] };
+
+export function ReportLibrary({ tools, reports, studies = [], latestTools = [] }: LibraryProps) {
+  const [tab, setTab] = useState<LibraryTab>("tools");
   const comparisons = reports.filter(r => r.vendors.length === 2);
-  const shownReports = comparisons.filter(r => `${r.title} ${r.vendors.join(" ")}`.toLowerCase().includes(q.toLowerCase()));
-  function changeTab(value:string) { setTab(value); setQ(""); history.replaceState(null,"",`#${value}`); }
+  useEffect(() => {
+    const restore = () => {
+      const requested = location.hash.slice(1);
+      if (["tools", "comparisons", "studies", "archive"].includes(requested)) {
+        setTab(requested === "studies" ? "comparisons" : requested as LibraryTab);
+        document.getElementById("results")?.scrollIntoView();
+      }
+    };
+    restore(); window.addEventListener("hashchange", restore);
+    return () => window.removeEventListener("hashchange", restore);
+  }, []);
+  function changeTab(value: string) { setTab(value as LibraryTab); history.replaceState(null, "", `#${value}`); }
   return <main id="main" className="library">
     <section className="lab-hero shell">
-      <div className="hero-copy"><p className="eyebrow"><span className="live-dot"/> ALHENA RESEARCH LAB</p>
-        <h1>Put ecommerce AI<br/><span>to the test.</span></h1>
-        <p className="intro">Explore every evaluated tool. Compare shopping and support quality, then follow the scores to real conversation evidence.</p>
-        <div className="hero-actions"><Link href="/request" className="button primary">Analyze your tool <ArrowUpRight size={18}/></Link><a href="#tools" className="button outline-button" onClick={()=>{setTab("tools");document.getElementById("results")?.scrollIntoView({behavior:"smooth"});}}>Explore the results <ArrowRight size={17}/></a></div>
-        <p className="hero-note">Quality evaluations: one tool, three customer storefronts, a place in the research library.</p>
+      <div className="hero-copy"><p className="eyebrow"><span className="live-dot" /> ALHENA RESEARCH LAB</p>
+        <h1>Put ecommerce AI<br /><span>to the test.</span></h1>
+        <p className="intro">Compare the latest published research on shopping and support. Explore composite scores, policy-compliant resolution, answer quality and speed, then follow each result to its evidence.</p>
+        <div className="hero-actions"><a href="#tools" className="button primary" onClick={() => { changeTab("tools"); document.getElementById("results")?.scrollIntoView({ behavior: "smooth" }); }}>Explore latest results <ArrowRight size={17} /></a><Link href="/request" className="button outline-button">Evaluate your tool <ArrowUpRight size={18} /></Link></div>
+        <p className="hero-note">New submissions run a separately scoped quality evaluation. <Link href="/methodology">Compare the methods.</Link></p>
       </div>
-      <div className="hero-snapshot tool-library-snapshot"><p className="eyebrow">THE GROWING EVIDENCE LIBRARY</p><h2>Evaluate once.<br/>Compare across the field.</h2>
-        <div className="library-totals"><div><strong>{tools.length}</strong><span>evaluated tools</span></div><div><strong>{comparisons.length}</strong><span>comparison reports</span></div><div><strong>26</strong><span>quality criteria</span></div></div>
-        <p>Every comparison uses validated source evaluations. Original capture dates and limitations travel with the evidence.</p>
-        <div className="mini-legend"><span><i className="shopping-dot"/>Shopping quality</span><span><i className="support-dot"/>Support quality</span></div>
-        {tools.slice(0,3).map(t=><Link key={t.id} className="snapshot-tool" href={`/tools/${t.id}`}><strong>{t.name}</strong><span>{score(t.scores.shopping)}<small> / 100</small></span><span>{score(t.scores.support)}<small> / 100</small></span></Link>)}
+      <div className="hero-snapshot tool-library-snapshot"><p className="eyebrow">LATEST PUBLISHED RESEARCH</p><h2>Every score.<br />Evidence behind it.</h2>
+        <div className="library-totals"><div><strong>{latestTools.length}</strong><span>tools in current results</span></div><div><strong>{studies.length}</strong><span>published studies</span></div><div><strong>26</strong><span>quality criteria</span></div></div>
+        <p>Composite scores combine policy-compliant resolution, quality and speed. Each study retains its capture dates and included coverage.</p>
+        <div className="mini-legend"><span><i className="shopping-dot" />Shopping composite</span><span><i className="support-dot" />Support composite</span></div>
+        {latestTools.slice(0, 3).map(t => <Link key={t.id} className="snapshot-tool" href={`/tools/${t.id}`}><strong>{t.name}</strong><span>{t.shopping.composite.value === null ? "Not eligible" : score(t.shopping.composite.value)}<small>{t.shopping.composite.value === null ? "" : " / 100"}</small></span><span>{t.support.composite.value === null ? "Not eligible" : score(t.support.composite.value)}<small>{t.support.composite.value === null ? "" : " / 100"}</small></span></Link>)}
+        {!latestTools.length && <p className="private-note">Approved study results will appear here. Historical quality pilots remain in their archive.</p>}
       </div>
     </section>
     <div className="shell">
-      {studies.length > 0 && <section className="comparison-cta"><div><p className="eyebrow">NEW RESEARCH · POLICY-COMPLIANT RESOLUTION</p><h2>{studies[0].title}</h2><p>Explore the correct answer or merchant-required next step, answer quality and speed, with the evidence behind each score.</p></div><Link className="button primary" href={`/studies/${studies[0].slug}`}>Read the study <ArrowRight size={17}/></Link></section>}
-      <section className="proof-ribbon" aria-label="Quality evaluation protocol"><div><Globe2/><span><strong>Quality evaluation sample</strong><small>Three storefronts per tool</small></span></div><div><ClipboardCheck/><span><strong>26 quality criteria</strong><small>Fixed questions and weights</small></span></div><div><BarChart3/><span><strong>Two quality scores</strong><small>Shopping and support, separately</small></span></div></section>
+      {studies.length > 0 && <section className="comparison-cta"><div><p className="eyebrow">LATEST COMPARATIVE STUDY</p><h2>{studies[0].title}</h2><p>Read the scores, complete coverage and underlying conversation evidence.</p></div><Link className="button primary" href={`/studies/${studies[0].slug}`}>Read the study <ArrowRight size={17} /></Link></section>}
+      <section className="proof-ribbon" aria-label="Published research scope"><div><Globe2 /><span><strong>Study-specific samples</strong><small>Included storefronts shown per lane</small></span></div><div><ClipboardCheck /><span><strong>26 quality criteria</strong><small>Quality is a separate score component</small></span></div><div><BarChart3 /><span><strong>Choose the metric</strong><small>Composite, resolution, quality or speed</small></span></div></section>
       <section className="library-section" id="results">
         <div className="section-heading"><div><p className="eyebrow">THE RESULTS, OPEN TO EXPLORE</p><h2>See the tools. Compare the evidence.</h2><p>Scores describe the selected storefront sample. They are not an overall vendor ranking.</p></div></div>
         <Tabs value={tab} onValueChange={changeTab}>
-          <TabsList aria-label="Research library views"><TabsTrigger value="tools">Quality evaluations <span className="tab-count">{tools.length}</span></TabsTrigger><TabsTrigger value="comparisons">Quality comparisons <span className="tab-count">{comparisons.length}</span></TabsTrigger>{studies.length > 0 && <TabsTrigger value="studies">Resolution studies <span className="tab-count">{studies.length}</span></TabsTrigger>}</TabsList>
-          <TabsContent value="tools" forceMount hidden={tab!=="tools"}>
-            <div className="library-tools"><div className="view-switch" role="group" aria-label="Results display"><button aria-pressed={view==="table"} onClick={()=>setView("table")}><Table2 size={16}/>Table</button><button aria-pressed={view==="charts"} onClick={()=>setView("charts")}><BarChart3 size={16}/>Charts</button></div><div className="search-wrap"><Search size={18}/><Input aria-label="Search evaluated tools" value={q} onChange={e=>setQ(e.target.value)} placeholder="Find a tool"/></div><label className="sort-label">Sort by<select value={sort} onChange={e=>setSort(e.target.value as typeof sort)}><option value="name">Tool name</option><option value="shopping">Shopping quality</option><option value="support">Support quality</option></select></label></div>
-            <div hidden={view!=="table"} className="data-table-wrap library-score-table"><table className="data-table"><caption>Latest complete evaluation for each tool. Scores out of 100.</caption><thead><tr><th>Tool</th><th>Shopping quality</th><th>Support quality</th><th>Sample</th><th>Capture dates</th><th>Freshness</th></tr></thead><tbody>{shownTools.map(t=><tr key={t.id}><td><Link className="tool-name-link" href={`/tools/${t.id}`}>{t.name}<ArrowUpRight size={15}/></Link><small>{new URL(t.website).hostname}</small></td><td><ScoreCell value={t.scores.shopping} lane="shopping"/></td><td><ScoreCell value={t.scores.support} lane="support"/></td><td>{t.storeCount} storefronts<br/><small>{t.conversationCount} conversations</small></td><td>{captureDates(t)}</td><td><Freshness fresh={t.fresh}/></td></tr>)}</tbody></table></div>
-            <div hidden={view!=="charts"} className="library-chart-grid">{(["shopping","support"] as const).map(lane=><section className="library-lane-chart" key={lane}><p className="eyebrow">{lane.toUpperCase()} QUALITY</p><h3>{lane === "shopping" ? "Helping a shopper choose" : "Resolving a support question"}</h3><p className="private-note">Mean score across three storefronts, out of 100.</p>{shownTools.map(t=><Link href={`/tools/${t.id}`} key={t.id} className="library-chart-row"><div><strong>{t.name}</strong><span>{score(t.scores[lane])}<small> / 100</small></span></div><div className={`score-track ${lane}`}><span style={{width:`${t.scores[lane]}%`}}/></div><small>{captureDates(t)}{!t.fresh ? " · Refresh needed" : ""}</small></Link>)}<div className="chart-ticks"><span>0</span><span>50</span><span>100</span></div></section>)}</div>
-            {!shownTools.length && <div className="empty-state"><h3>{q ? "No matching tools" : "The library is ready for its first tool"}</h3><p>Submit a tool and three customer storefronts for review.</p><Link href="/request" className="text-link">Analyze your tool <ArrowRight size={16}/></Link></div>}
-            <div className="library-method-note"><strong>Same criteria. Visible limits.</strong><p>Each tool has six ten-turn conversations across three customer storefronts: three shopping and three support conversations. Charts use one complete evaluation per tool, so reusing it in multiple reports does not inflate the sample.</p><p>Fresh means every capture is within 30 days. Older results stay visible with a refresh notice, but are not used to create new automatic comparisons. Different storefronts and merchant configurations can affect scores.</p><Link href="/methodology">Read all 26 scoring criteria <ArrowRight size={15}/></Link></div>
-          </TabsContent>
-          <TabsContent value="comparisons" forceMount hidden={tab!=="comparisons"}>
-            <div className="library-tools"><p>Side-by-side reports, assembled from the underlying evaluations.</p><div className="search-wrap"><Search size={18}/><Input aria-label="Search comparison reports" value={q} onChange={e=>setQ(e.target.value)} placeholder="Search two tools"/></div></div>
-            <div className="report-list">{shownReports.map(r=><ComparisonCard key={r.slug} report={r}/>)}</div>
-            {!shownReports.length && <div className="empty-state"><h3>{q ? "No matching comparisons" : "Comparisons appear when compatible evaluations are ready"}</h3><p>After an approved tool evaluation passes validation, reports are created against the other eligible tools in the library.</p></div>}
-          </TabsContent>
-          <TabsContent value="studies" forceMount hidden={tab!=="studies"}>
-            <p className="library-method-note">These studies use the versioned Alhena Research Lab policy-resolution method. Their composites combine resolution, quality and speed. The quality evaluations in the other tabs retain their original scores and capture dates.</p>
-            <div className="report-list">{studies.map(study => <article className="report-card" key={study.slug}><div className="report-card-main"><div className="report-meta"><span className="pill">POLICY-RESOLUTION STUDY</span><span>Published {date(study.publishedAt)}</span></div><h2><Link href={`/studies/${study.slug}`}>{study.title}</Link></h2><p>{study.description}</p><div className="report-facts"><span><b>{study.sample.capturedCoreContexts}</b> core contexts</span><span><b>{study.sample.auditedPcrDecisions}</b> audited checkpoints</span></div><Link className="button primary" href={`/studies/${study.slug}`}>Explore the study <ArrowRight size={17}/></Link><p className="card-disclosure">Selected public storefront sessions. Resolution includes a policy-prescribed next step; it does not establish downstream case completion.</p></div><div className="score-preview"><p className="eyebrow">COMPOSITE SCORES / 100</p>{(["shopping","support"] as const).map(mode => <div className="preview-lane" key={mode}><h3>{mode === "shopping" ? "Shopping" : "Support"}</h3>{study.providers.map(p => <div className="preview-score-row" key={p.id}><span>{p.name}</span><strong>{p[mode].composite.value === null ? "Not eligible" : score(p[mode].composite.value)}</strong></div>)}</div>)}</div></article>)}</div>
-          </TabsContent>
+          <TabsList className="max-w-full flex-wrap group-data-[orientation=horizontal]/tabs:h-auto" aria-label="Research library views"><TabsTrigger value="tools">Latest results <span className="tab-count">{latestTools.length}</span></TabsTrigger><TabsTrigger value="comparisons">Comparative studies <span className="tab-count">{studies.length}</span></TabsTrigger><TabsTrigger className="whitespace-normal" value="archive">Historical quality pilot archive</TabsTrigger></TabsList>
+          <TabsContent value="tools" forceMount hidden={tab !== "tools"}><LatestResearchResults tools={latestTools} /></TabsContent>
+          <TabsContent value="comparisons" forceMount hidden={tab !== "comparisons"}><StudyComparisons studies={studies} /></TabsContent>
+          <TabsContent value="archive" forceMount hidden={tab !== "archive"}><QualityPilotArchive tools={tools} reports={comparisons} /></TabsContent>
         </Tabs>
       </section>
-      <section className="comparison-cta tool-submit-cta"><div><p className="eyebrow">ADD TO THE EVIDENCE</p><h2>How does your tool perform?</h2><p>Enter one tool and three customer storefronts. After review, we evaluate it once and create comparisons against compatible, recent evaluations already in the library.</p></div><Link className="button primary" href="/request">Analyze your tool <ArrowRight size={17}/></Link></section>
+      <section className="comparison-cta tool-submit-cta"><div><p className="eyebrow">ADD TO THE EVIDENCE</p><h2>How does your tool perform?</h2><p>Current submissions run a separately scoped quality evaluation: one tool and three customer storefronts. Approved results join the quality-pilot library and compatible quality comparisons.</p><p><Link href="/methodology" className="text-link">Compare the evaluation methods <ArrowRight size={15} /></Link></p></div><Link className="button primary" href="/request">Request a quality evaluation <ArrowRight size={17} /></Link></section>
       <section className="library-section faq-section"><p className="eyebrow">A FEW FAIR QUESTIONS</p><h2>Know what you’re looking at.</h2>
-        <details><summary>Do new comparisons require new testing?</summary><p>The new tool is tested only on missing or expired storefront conversations. Pairwise reports reuse validated source evaluations captured within 30 days. Assembling a comparison adds no new shopper conversations or model judging calls.</p></details>
-        <details><summary>What can I read without signing in?</summary><p>Tool scores, sample sizes, capture dates, summaries and the rubric are public. Detailed conversations, criterion decisions and evidence downloads require a verified work email.</p></details>
+        <details><summary>What does the default score measure?</summary><p>The default is the latest study’s composite, combining policy-compliant resolution, answer quality and full-answer speed. Use the metric selector to inspect each component separately. Policy-compliant resolution can include a documented required next step; it does not establish a completed refund or downstream case resolution.</p></details>
+        <details><summary>What happens to earlier quality evaluations?</summary><p>They remain in the Historical quality pilot archive with their original scores and capture dates. The pilot uses a separate scope and protocol. Its scores are not combined with the current research results.</p></details>
+        <details><summary>What can I read without signing in?</summary><p>Study scores, sample sizes, capture dates, summaries and methods are public. Detailed conversations, criterion decisions and evidence downloads require a verified work email.</p></details>
         <details><summary>Who runs Alhena Research Lab?</summary><p>Alhena operates and commissions these studies. Separate AI judging and audit do not make the Lab an independent research institution. The scoring record and limitations accompany every report.</p></details>
-        <details><summary>Are these the Gorgias leaderboard scores?</summary><p>The quality evaluations apply the pinned shopping and support criteria with two fixed themes. Separately versioned resolution studies use Alhena Research Lab’s policy-compliant resolution method with quality and speed. Each report identifies its method and sample; the two score types are not interchangeable.</p></details>
       </section>
     </div>
   </main>;
+}
+
+function StudyComparisons({ studies }: { studies: PolicyStudySummary[] }) {
+  const [query, setQuery] = useState("");
+  const shown = studies.filter(s => `${s.title} ${s.providers.map(p => p.name).join(" ")}`.toLowerCase().includes(query.toLowerCase()));
+  return <>
+    <div className="library-tools"><p>Published comparative research, with its versioned method and complete evidence.</p><div className="search-wrap"><Search size={18} /><Input aria-label="Search comparative studies" value={query} onChange={e => setQuery(e.target.value)} placeholder="Find a study or tool" /></div></div>
+    <div className="report-list">{shown.map(study => <article className="report-card" key={study.slug}><div className="report-card-main"><div className="report-meta"><span className="pill">POLICY-RESOLUTION STUDY</span><span>Published {date(study.publishedAt)}</span></div><h2><Link href={`/studies/${study.slug}`}>{study.title}</Link></h2><p>{study.description}</p><p className="private-note">Captures {researchCaptureDates(study)} · {study.protocol}</p><div className="report-facts"><span><b>{study.sample.capturedCoreContexts}</b> captured core contexts</span><span><b>{study.sample.judgedCoreContexts}</b> assessed contexts</span><span><b>{study.sample.auditedPcrDecisions}</b> audited checkpoints</span></div><Link className="button primary" href={`/studies/${study.slug}`}>Explore the study <ArrowRight size={17} /></Link><p className="card-disclosure">Selected public storefront sessions. Resolution includes a policy-prescribed next step; it does not establish downstream case completion.</p></div><div className="score-preview"><p className="eyebrow">COMPOSITE SCORES / 100</p>{(["shopping", "support"] as const).map(mode => <div className="preview-lane" key={mode}><h3>{mode === "shopping" ? "Shopping" : "Support"}</h3>{study.providers.map(p => <div className="preview-score-row" key={p.id}><span>{p.name}</span><strong>{p[mode].composite.value === null ? "Not eligible" : score(p[mode].composite.value)}</strong></div>)}</div>)}</div></article>)}</div>
+    {!shown.length && <div className="empty-state"><h3>{query ? "No matching studies" : "No published comparative studies yet"}</h3><p>Approved studies will appear here with their scores and evidence.</p></div>}
+  </>;
+}
+
+function QualityPilotArchive({ tools, reports }: { tools: ToolSummary[]; reports: ReportSummary[] }) {
+  const [query, setQuery] = useState("");
+  const shownTools = tools.filter(t => `${t.name} ${t.website}`.toLowerCase().includes(query.toLowerCase())).sort((a, b) => a.name.localeCompare(b.name));
+  const shownReports = reports.filter(r => `${r.title} ${r.vendors.join(" ")}`.toLowerCase().includes(query.toLowerCase()));
+  return <>
+    <div className="library-method-note"><strong>Historical quality pilot archive</strong><p>Earlier quality-only evaluations and comparison reports retain their original method and capture dates. They are separate from the latest research composites, PCR and speed results.</p><p>{tools.length} quality-pilot tools · {reports.length} quality comparison reports. Pilot reuse eligibility is shown only for this archive.</p></div>
+    <div className="library-tools"><h3>Tool quality evaluations</h3><div className="search-wrap"><Search size={18} /><Input aria-label="Search historical quality pilots" value={query} onChange={e => setQuery(e.target.value)} placeholder="Find an archived tool or report" /></div></div>
+    <div className="data-table-wrap library-score-table"><table className="data-table"><caption>Historical quality-pilot scores out of 100. These are not the current research composites.</caption><thead><tr><th>Tool</th><th>Shopping quality</th><th>Support quality</th><th>Pilot sample</th><th>Original capture dates</th><th>Pilot reuse eligibility</th></tr></thead><tbody>{shownTools.map(t => <tr key={t.id}><td><Link className="tool-name-link" href={`/tools/${t.id}`}>{t.name}<ArrowUpRight size={15} /></Link><small>{new URL(t.website).hostname}</small></td><td><ScoreCell value={t.scores.shopping} lane="shopping" /></td><td><ScoreCell value={t.scores.support} lane="support" /></td><td>{t.storeCount} storefronts<br /><small>{t.conversationCount} conversations</small></td><td>{captureDates(t)}</td><td><Freshness fresh={t.fresh} /></td></tr>)}</tbody></table></div>
+    {!shownTools.length && <p className="empty-state">{query ? "No matching archived tools." : "No historical quality pilots are available."}</p>}
+    <div className="library-method-note"><strong>Quality-pilot scope.</strong><p>Each tool has six ten-turn conversations across three customer storefronts: three shopping and three support conversations. Pilot comparisons reuse compatible source evaluations within 30 days; publication does not reset capture dates.</p><Link href="/methodology/quality-pilot-v1">Read the methods and scope <ArrowRight size={15} /></Link></div>
+    <h3>Historical quality comparison reports</h3><div className="report-list">{shownReports.map(r => <ComparisonCard key={r.slug} report={r} />)}</div>
+    {!shownReports.length && <p className="empty-state">{query ? "No matching archived comparison reports." : "No historical quality comparison reports are available."}</p>}
+  </>;
 }
 export function captureDates(t:Pick<ToolSummary,"oldestCaptureAt"|"evaluatedAt">) { const start=date(t.oldestCaptureAt),end=date(t.evaluatedAt); return start===end?end:`${start} – ${end}`; }
 export function Freshness({fresh}:{fresh:boolean}) {return <span className={`freshness ${fresh?"current":"aged"}`}>{fresh?"Within 30 days":"Refresh needed"}</span>;}

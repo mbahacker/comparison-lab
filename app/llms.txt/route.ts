@@ -1,12 +1,56 @@
 import { getToolLibrary } from '@/lib/server/reuse';
+import { getResearchLibrary } from '@/lib/server/research-library';
 import { listReports } from '@/lib/server/evidence';
 import { publicUrl } from '@/lib/server/public-data';
-import { listPolicyStudies } from '@/lib/server/policy-studies';
-export const dynamic='force-dynamic';
-const label=(s:string)=>s.replace(/[\r\n\[\]<>]/g,' ').trim();
-export async function GET(){
- const library=getToolLibrary();
- const studies=listPolicyStudies();
- const text=`# Alhena Research Lab\n\n> Alhena-operated, commissioned evaluations of ecommerce AI tools on real customer storefronts.\n\n## Quality-pilot-v1 scope\n\nShopping and support quality are separate scores out of 100, using 26 pinned quality criteria and fixed weights. Each tool evaluation uses three customer storefronts, six ten-turn conversations and two fixed question themes. These are selected deployment samples, not overall vendor rankings. This pilot does not calculate automation, speed or composite scores. Separate AI judge and auditor calls do not establish institutional independence.\n\n## Dates and evidence\n\nAlways cite the original capture dates and sample limitations. Publication or creation of another comparison is not a fresh test. Automatic comparisons reuse compatible results for at most 30 days; older profiles remain historical. Comparison reports retain the source evidence and its limitations. Public summaries are available without login; full conversations, criterion decisions and evidence downloads require a verified work email.\n\n## Public sources\n\n- [All evaluated tools](${publicUrl('/')})\n- [Scoring rubric and methodology](${publicUrl('/methodology')})\n- [Machine-readable score summaries](${publicUrl('/tool-scores.json')})\n- [Sitemap](${publicUrl('/sitemap.xml')})\n\n## Policy-resolution studies\n\nA separate Alhena Research Lab method, policy-resolution-v1, distinguishes policy-compliant resolution in public sessions, quality, speed and composite. It is not the original Gorgias automation ranking or proof of completed backend actions. Only approved complete studies appear here; detailed evidence retains the verified-work-email gate.\n\n- [Study catalog](${publicUrl('/studies')})\n- [Versioned method](${publicUrl('/studies/policy-resolution-v1')})\n- [Machine-readable study summaries](${publicUrl('/study-scores.json')})\n\n${studies.length ? studies.map(s=>`- [${label(s.title)}](${publicUrl(`/studies/${s.slug}`)})`).join('\n') : 'No policy-resolution study is approved for publication yet.'}\n\n## Tool profiles\n\n${library.tools.map(t=>`- [${label(t.name)}](${publicUrl(`/tools/${t.id}`)})`).join('\n')}\n\n## Comparison reports\n\n${listReports().filter(r=>r.vendors.length===2).map(r=>`- [${label(r.title)}](${publicUrl(`/reports/${r.slug}`)})`).join('\n')}\n`;
- return new Response(text,{headers:{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'public, max-age=0, must-revalidate'}});
+export const dynamic = 'force-dynamic';
+const label = (s: string) => s.replace(/[\r\n\[\]<>]/g, ' ').trim();
+export async function GET() {
+  const research = getResearchLibrary();
+  const historical = getToolLibrary();
+  const text = `# Alhena Research Lab
+
+> Alhena-operated, commissioned evaluations of ecommerce AI tools on selected customer storefronts.
+
+## Current scoring: policy-resolution-v1
+
+The homepage and current tool profiles use the newest published compatible policy-resolution study for each provider, selected by capture date. Shopping and support COMPOSITE scores combine policy-compliant resolution, answer quality and full-answer speed. Quality is a distinct component and must not be used as a label for a composite. Shopping weights: resolution 40%, quality 35%, speed 25%. Support weights: resolution 50%, quality 40%, speed 10%. Overall is the equal mean of the unrounded lane composites when both are eligible.
+
+Resolution measures correct answers or verified merchant-prescribed next steps in public sessions. It does not establish completed refunds, account actions or human-resolved cases. This is Alhena Research Lab's method, not Gorgias's automation ranking or independent third-party certification. Registered and included samples, exclusions, capture dates and limitations must accompany comparisons. Profiles may draw from different studies; use each linked study's sample and dates.
+
+## Public sources
+
+- [Current results and historical archive](${publicUrl('/')})
+- [Scoring methodology](${publicUrl('/methodology')})
+- [Complete current method](${publicUrl('/studies/policy-resolution-v1')})
+- [Current machine-readable tool scores, explicit metrics, v2](${publicUrl('/tool-scores.json')})
+- [All approved study summaries](${publicUrl('/study-scores.json')})
+- [Study catalog](${publicUrl('/studies')})
+- [Sitemap](${publicUrl('/sitemap.xml')})
+
+## Current tool profiles
+
+${research.tools.length ? research.tools.map(t => `- [${label(t.name)}](${publicUrl(`/tools/${t.id}`)}) — ${t.protocol}; captures ${t.captureStartAt} to ${t.captureEndAt}; source [${label(t.studyTitle)}](${publicUrl(`/studies/${t.studySlug}`)})`).join('\n') : 'No current policy-resolution evaluations have been published.'}
+
+## Published studies
+
+${research.studies.map(s => `- [${label(s.title)}](${publicUrl(`/studies/${s.slug}`)}) — published ${s.publishedAt}; original captures ${s.captureStartAt} to ${s.captureEndAt}`).join('\n')}
+
+## Historical quality pilot and submissions
+
+quality-pilot-v1 measures quality only using the 26 pinned criteria: three storefronts, six conversations and two fixed question themes per tool. Its original scores are preserved in the historical archive and are not the current study scores. The Analyze your tool form currently requests this quality-only evaluation; it does not automatically run a policy-resolution study. Compatible pilot evidence can be reused within 30 days of its original capture; publication does not refresh that clock.
+
+- [Historical quality archive](${publicUrl('/#archive')})
+- [Original quality-pilot method and criteria](${publicUrl('/methodology/quality-pilot-v1')})
+- [Historical quality-pilot scores, v1](${publicUrl('/quality-pilot-scores.json')})
+
+${listReports().filter(r => r.vendors.length === 2).map(r => `- [${label(r.title)} — quality pilot](${publicUrl(`/reports/${r.slug}`)})`).join('\n')}
+
+Historical quality-only profiles without a published current study:
+${historical.tools.filter(t => !research.tools.some(current => current.id === t.id)).map(t => `- [${label(t.name)} — quality pilot only](${publicUrl(`/tools/${t.id}`)})`).join('\n') || 'None.'}
+
+## Evidence access
+
+Public summaries, scores and methodology are open. Detailed conversations, criterion decisions, source records and downloadable evidence require a verified work email. No requester identity is included in public datasets. Always cite the original capture dates and sample limitations. Republished or reused evidence is not a fresh evaluation.
+`;
+  return new Response(text, { headers: { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'public, max-age=0, must-revalidate' } });
 }
