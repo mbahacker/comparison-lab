@@ -1,17 +1,37 @@
 import type { PolicyStudySummary } from '../policy-study.ts';
 import { POLICY_LABEL } from '../policy-study.ts';
-import { publicUrl, publisher } from './public-data.ts';
+import { breadcrumbData, publicUrl, publisher } from './public-data.ts';
+import { studyFindings } from '../study-findings.ts';
+import { fullAnswerSeconds } from '../score-parts.ts';
 
+const MEASURES = [['composite', 'composite'], ['policyResolution', 'policy-compliant resolution'], ['quality', 'answer quality'], ['speed', 'full-answer speed score']] as const;
+
+/** Report plus Dataset: the scores are published data, and the conversation evidence is the gated part. */
 export function policyStudyStructuredData(study: PolicyStudySummary) {
+  const url = publicUrl(`/studies/${study.slug}`);
+  const variables = study.providers.flatMap(provider => [
+    ...(['shopping', 'support'] as const).flatMap(lane => [
+      ...MEASURES.flatMap(([key, label]) => provider[lane][key].value === null ? [] : [{ '@type': 'PropertyValue', name: `${provider.name} ${lane} ${label}`, value: provider[lane][key].value, unitText: 'points out of 100', description: provider[lane][key].explanation }]),
+      ...(fullAnswerSeconds(provider[lane]) === null ? [] : [{ '@type': 'PropertyValue', name: `${provider.name} ${lane} average time to a full answer`, value: fullAnswerSeconds(provider[lane]), unitCode: 'SEC', unitText: 'seconds' }]),
+    ]),
+    ...(provider.overallComposite.value === null ? [] : [{ '@type': 'PropertyValue', name: `${provider.name} overall composite`, value: provider.overallComposite.value, unitText: 'points out of 100' }]),
+  ]);
   return {
-    '@context': 'https://schema.org', '@type': 'Report', name: study.title,
-    description: study.description, url: publicUrl(`/studies/${study.slug}`),
-    datePublished: study.publishedAt, temporalCoverage: `${study.captureStartAt}/${study.captureEndAt}`,
-    publisher: publisher(), author: publisher(),
-    about: [POLICY_LABEL, 'Shopping and support quality', 'Full-answer speed', 'Policy-resolution composite'],
-    isAccessibleForFree: false,
-    hasPart: { '@type': 'WebPageElement', isAccessibleForFree: false, cssSelector: '.study-protected-evidence' },
-    measurementTechnique: `${study.protocol}; method SHA-256 ${study.method.sha256}`,
+    '@context': 'https://schema.org', '@graph': [{
+      '@type': ['Report', 'Dataset'], '@id': `${url}#study`, name: study.title, headline: study.title,
+      description: study.description, abstract: studyFindings(study).join(' '), url, mainEntityOfPage: url,
+      datePublished: study.publishedAt, dateModified: study.publishedAt, temporalCoverage: `${study.captureStartAt}/${study.captureEndAt}`,
+      publisher: publisher(), author: publisher(), creator: publisher(), inLanguage: 'en',
+      about: [...study.providers.map(p => ({ '@type': 'SoftwareApplication', name: p.name, url: p.website, applicationCategory: 'Ecommerce AI shopping and support agent' })), POLICY_LABEL, 'Answer quality', 'Full-answer speed'],
+      keywords: ['ecommerce AI agent evaluation', 'AI shopping assistant benchmark', 'AI customer support benchmark', ...study.providers.map(p => p.name)],
+      variableMeasured: variables,
+      measurementTechnique: `${study.protocol}; method SHA-256 ${study.method.sha256}`,
+      citation: publicUrl('/studies/policy-resolution-v1'),
+      isBasedOn: publicUrl('/study-scores.json'),
+      distribution: { '@type': 'DataDownload', contentUrl: publicUrl('/study-scores.json'), encodingFormat: 'application/json', name: 'Public study summaries' },
+      isAccessibleForFree: false,
+      hasPart: { '@type': 'WebPageElement', isAccessibleForFree: false, cssSelector: '.study-protected-evidence' },
+    }, breadcrumbData([{ name: 'Alhena Research Lab', path: '/' }, { name: 'Studies', path: '/studies' }, { name: study.title, path: `/studies/${study.slug}` }])],
   };
 }
 export function publicPolicyStudyData(studies: PolicyStudySummary[]) {

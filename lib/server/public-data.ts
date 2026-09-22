@@ -1,7 +1,27 @@
 import { config } from './config.ts';
 import type { Row } from './model.ts';
 export const publicUrl = (pathname: string) => new URL(pathname, `${config().appUrl}/`).href;
-export const publisher = () => ({ '@type': 'Organization', name: 'Alhena Research Lab', url: publicUrl('/') });
+const alhena = { '@type': 'Organization', name: 'Alhena', url: 'https://alhena.ai/' };
+/** The Lab as an entity, linked to its operator so answer engines attribute studies correctly. */
+export const publisher = () => ({ '@type': 'Organization', '@id': publicUrl('/#organization'), name: 'Alhena Research Lab', url: publicUrl('/'), logo: publicUrl('/brand/alhena-logo.svg'), parentOrganization: alhena, sameAs: ['https://alhena.ai/', 'https://github.com/mbahacker/comparison-lab'] });
+export function siteStructuredData() {
+  return { '@context': 'https://schema.org', '@graph': [
+    publisher(),
+    { '@type': 'WebSite', '@id': publicUrl('/#website'), name: 'Alhena Research Lab', url: publicUrl('/'), inLanguage: 'en',
+      description: 'Published evaluations of ecommerce AI shopping and support agents on live storefronts: resolution, answer quality and speed, with the evidence behind each score.',
+      publisher: { '@id': publicUrl('/#organization') } },
+  ] };
+}
+/** Method and catalog pages: an article about how the scores are produced, with its place in the site. */
+export function pageStructuredData({ type, path, headline, description, crumbs }: { type: 'TechArticle' | 'CollectionPage'; path: string; headline: string; description: string; crumbs: { name: string; path: string }[] }) {
+  return { '@context': 'https://schema.org', '@graph': [
+    { '@type': type, '@id': `${publicUrl(path)}#page`, url: publicUrl(path), headline, name: headline, description, inLanguage: 'en', publisher: publisher(), author: publisher(), isPartOf: { '@id': publicUrl('/#website') } },
+    breadcrumbData([{ name: 'Alhena Research Lab', path: '/' }, ...crumbs]),
+  ] };
+}
+export function breadcrumbData(items: { name: string; path: string }[]) {
+  return { '@type': 'BreadcrumbList', itemListElement: items.map((item, i) => ({ '@type': 'ListItem', position: i + 1, name: item.name, item: publicUrl(item.path) })) };
+}
 export function publicToolData(tools: Row[], generatedAt: string) {
   return {
     schema_version: 'alhena-research-lab/tool-summaries-v1', generated_at: generatedAt,

@@ -1,3 +1,4 @@
+import { jsonLd, pageStructuredData } from '@/lib/server/public-data';
 import Link from 'next/link';
 import { POLICY_PROTOCOL as method } from '@/benchmark/policy-resolution.mjs';
 
@@ -8,7 +9,7 @@ export const metadata = {
 };
 
 export default function Page() {
-  return <main id="main" className="shell method-page">
+  return <main id="main" className="shell method-page"><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(pageStructuredData({ type: 'TechArticle', path: '/methodology', headline: 'Research methodology and scoring', description: 'How Alhena Research Lab measures policy-compliant resolution, answer quality and speed, and combines them into shopping and support composite scores.', crumbs: [{ name: 'Methodology', path: '/methodology' }] })) }} />
     <p className="eyebrow">ALHENA RESEARCH LAB · METHODOLOGY</p>
     <h1>What the scores measure.</h1>
     <p className="intro">The current research library uses <strong>policy-resolution-v1</strong>. Shopping and support composite scores combine three distinct measures: policy-compliant resolution, answer quality and full-answer speed.</p>

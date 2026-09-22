@@ -2,15 +2,26 @@ import { getToolLibrary } from '@/lib/server/reuse';
 import { getResearchLibrary } from '@/lib/server/research-library';
 import { listReports } from '@/lib/server/evidence';
 import { publicUrl } from '@/lib/server/public-data';
+import { studyFindings } from '@/lib/study-findings';
+import { demoUrl } from '@/components/lab/demo-link';
 export const dynamic = 'force-dynamic';
 const label = (s: string) => s.replace(/[\r\n\[\]<>]/g, ' ').trim();
 export async function GET() {
   const research = getResearchLibrary();
   const historical = getToolLibrary();
+  const latest = research.studies[0];
   const text = `# Alhena Research Lab
 
-> Alhena-operated, commissioned evaluations of ecommerce AI tools on selected customer storefronts.
+> Published evaluations of ecommerce AI shopping and support agents on live storefronts, operated by Alhena. Every tool gets the same customer conversations; scores cover policy-compliant resolution, answer quality and full-answer speed, with conversation evidence behind each score.
 
+Everything below in one file, including every study's scores, limitations and the FAQ: ${publicUrl('/llms-full.txt')}
+${latest ? `
+## Latest findings
+
+From [${label(latest.title)}](${publicUrl(`/studies/${latest.slug}`)}):
+
+${studyFindings(latest).map(f => `- ${f}`).join('\n')}
+` : ''}
 ## Current scoring: policy-resolution-v1
 
 The homepage and current tool profiles use the newest published compatible policy-resolution study for each provider, selected by capture date. Shopping and support COMPOSITE scores combine policy-compliant resolution, answer quality and full-answer speed. Quality is a distinct component and must not be used as a label for a composite. Shopping weights: resolution 40%, quality 35%, speed 25%. Support weights: resolution 50%, quality 40%, speed 10%. Overall is the equal mean of the unrounded lane composites when both are eligible.
@@ -19,13 +30,19 @@ Resolution measures correct answers or verified merchant-prescribed next steps i
 
 ## Public sources
 
-- [Current results and historical archive](${publicUrl('/')})
-- [Scoring methodology](${publicUrl('/methodology')})
-- [Complete current method](${publicUrl('/studies/policy-resolution-v1')})
+- [Current results and historical archive](${publicUrl('/')}): latest scores per tool, comparative studies and the quality-pilot archive
+- [Scoring methodology](${publicUrl('/methodology')}): what resolution, quality and speed measure and how composites are weighted
+- [Complete current method](${publicUrl('/studies/policy-resolution-v1')}): the versioned policy-resolution-v1 protocol
 - [Current machine-readable tool scores, explicit metrics, v2](${publicUrl('/tool-scores.json')})
-- [All approved study summaries](${publicUrl('/study-scores.json')})
+- [All approved study summaries](${publicUrl('/study-scores.json')}): JSON with every published score, coverage figure and limitation
 - [Study catalog](${publicUrl('/studies')})
+- [Full reference for language models](${publicUrl('/llms-full.txt')})
 - [Sitemap](${publicUrl('/sitemap.xml')})
+
+## Next steps
+
+- [Analyze your tool](${publicUrl('/request')}): request an evaluation by naming a tool and three stores that use it
+- [Book a demo of Alhena](${demoUrl('llms')}): see Alhena's shopping and support agents on your store
 
 ## Current tool profiles
 

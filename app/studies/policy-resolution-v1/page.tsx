@@ -1,3 +1,4 @@
+import { jsonLd, pageStructuredData } from '@/lib/server/public-data';
 import Link from 'next/link';
 import { POLICY_LABEL, POLICY_PROTOCOL } from '@/lib/policy-study';
 import { POLICY_PROTOCOL as method } from '@/benchmark/policy-resolution.mjs';
@@ -11,7 +12,7 @@ export const metadata = {
 };
 export default function Page() {
   const published = listPolicyStudies().length > 0;
-  return <main id="main" className="shell prose-page">
+  return <main id="main" className="shell prose-page"><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(pageStructuredData({ type: 'TechArticle', path: '/studies/policy-resolution-v1', headline: 'Policy-resolution v1 methodology', description: 'Alhena Research Lab’s versioned method for policy-compliant resolution, answer quality and full-answer speed in public storefront sessions.', crumbs: [{ name: 'Studies', path: '/studies' }, { name: 'Policy-resolution v1 methodology', path: '/studies/policy-resolution-v1' }] })) }} />
     <p className="eyebrow">ALHENA RESEARCH LAB · VERSIONED METHODOLOGY</p>
     <h1>{POLICY_LABEL}</h1>
     <p className="intro"><code>{POLICY_PROTOCOL}</code> measures whether an assistant provides a correct answer or a policy-prescribed next step for the request made in a public storefront session. Each study freezes its method before new judgments and reports its completion and publication status separately.</p>

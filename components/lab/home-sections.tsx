@@ -7,6 +7,7 @@ import { COMPOSITE_WEIGHTS, type ScorePartKey } from "@/lib/score-parts";
 import { PART_NAMES, PartsLegend, ScoreRow } from "./score-bars";
 import { DemoLink } from "./demo-link";
 import { captureRange, date } from "@/lib/client";
+import type { FaqItem } from "@/lib/faq";
 
 const LANES: { key: PolicyLane; label: string }[] = [{ key: "shopping", label: "Shopping" }, { key: "support", label: "Support" }];
 const HERO_TOOL_LIMIT = 4;
@@ -45,7 +46,7 @@ function Scoreboard({ tools, studies }: { tools: ResearchTool[]; studies: Policy
       </div>
       {study && <Link className="scoreboard-link" href={`/studies/${study.slug}`}>Read the study</Link>}
     </div>
-    {study && <p className="scoreboard-meta">{deployments} storefront deployments, {study.sample.capturedCoreContexts} conversations, captured {captureRange(study.captureStartAt, study.captureEndAt)}.</p>}
+    {study && <p className="scoreboard-meta">{deployments} storefront deployments, {study.sample.capturedCoreContexts} conversations, captured <time dateTime={`${study.captureStartAt}/${study.captureEndAt}`}>{captureRange(study.captureStartAt, study.captureEndAt)}</time>.</p>}
     {shown.length ? LANES.map(lane => <div className="lane-board" key={lane.key}>
       <h3>{lane.label}<span>Composite / 100</span></h3>
       <ul>{shown.map(tool => <ScoreRow key={tool.id} name={tool.name} href={`/tools/${tool.id}`} lane={lane.key} result={tool[lane.key]} />)}</ul>
@@ -150,23 +151,14 @@ export function HomeCallToAction() {
   </section>;
 }
 
-const FAQ: { q: string; a: string }[] = [
-  { q: "Is this a ranking of vendors?", a: "No. Each score describes the storefronts and capture dates in its study. Merchant setups differ, and storefronts that could not be scored are left out rather than counted as zero." },
-  { q: "What does the composite score measure?", a: "It combines resolution, answer quality and full-answer speed with published weights: 40/35/25 for shopping and 50/40/10 for support. Use the metric selector to inspect each part. Resolution can credit a documented next step, such as a required handoff; it does not confirm that a refund or case was completed afterwards." },
-  { q: "Who runs Alhena Research Lab?", a: "Alhena operates and commissions these studies, and its own agent appears in the results. Separate AI judging and audits do not make the Lab an independent research institution, so the scoring record and limitations accompany every report." },
-  { q: "What can I read without signing in?", a: "Study scores, sample sizes, capture dates, summaries and methods are public. Detailed conversations, criterion decisions and evidence downloads require a verified work email." },
-  { q: "Is every evaluation fully automatic?", a: "Research verifies five customer deployments before an operator approves testing. AI then runs the conversations, judges responses and audits resolution decisions, and validated results publish automatically. Temporary failures can retry within fixed limits; unsupported widgets, uncertain response attribution and failed validation may need operator review. Incomplete runs stay unpublished." },
-  { q: "What happened to the earlier quality scores?", a: "They remain in the historical quality pilot archive with their original scores and capture dates. The pilot used a separate scope and protocol, so its scores are not combined with the current results." },
-];
-
-export function HomeFaq() {
+export function HomeFaq({ items }: { items: FaqItem[] }) {
   return <section className="faq" aria-labelledby="faq-title">
     <div className="shell faq-grid">
       <div className="section-intro">
         <h2 id="faq-title">Read this before the scores</h2>
         <p>What the numbers cover, and what they don’t.</p>
       </div>
-      <div className="faq-list">{FAQ.map(item => <details key={item.q}><summary>{item.q}</summary><p>{item.a}</p></details>)}</div>
+      <div className="faq-list">{items.map((item, i) => <details key={item.q} open={i === 0 && Boolean(item.points)}><summary>{item.q}</summary>{item.points ? <><p>{item.lead}</p><ul className="faq-points">{item.points.map(point => <li key={point}>{point}</li>)}</ul>{item.href && <p><Link href={item.href}>{item.linkText ?? "Read more"}</Link></p>}</> : <p>{item.a}{item.href && <> <Link href={item.href}>{item.linkText ?? "Read more"}</Link>.</>}</p>}</details>)}</div>
     </div>
   </section>;
 }

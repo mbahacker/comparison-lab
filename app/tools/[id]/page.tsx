@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { getTool } from '@/lib/server/reuse';
 import { listReports } from '@/lib/server/evidence';
-import { publicUrl, jsonLd, toolStructuredData } from '@/lib/server/public-data';
+import { breadcrumbData, publicUrl, jsonLd, toolStructuredData } from '@/lib/server/public-data';
 import { ToolProfile } from '@/components/lab/tool-profile';
 import type { ToolSummary, ReportSummary } from '@/lib/client';
 import { getResearchLibrary } from '@/lib/server/research-library';
@@ -20,5 +20,6 @@ export default async function Page({params}:{params:Promise<{id:string}>}){
  if(!research && !pilot) notFound();
  const comparisons=pilot ? listReports().filter(r=>r.vendors.length===2 && pilot.comparisonSlugs?.includes(r.slug)) : [];
  const structured=research ? researchToolStructuredData(research,publicUrl('/')) : {...toolStructuredData(pilot!),distribution:{'@type':'DataDownload',contentUrl:publicUrl('/quality-pilot-scores.json'),encodingFormat:'application/json',name:'Historical quality-pilot summaries'}};
- return <><script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(structured)}}/><ToolProfile research={research} study={library.studies.find(study=>study.slug===research?.studySlug)} pilot={pilot as ToolSummary | undefined} comparisons={comparisons as ReportSummary[]}/></>;
+ const name=research?.name ?? pilot!.name, crumbs={'@context':'https://schema.org',...breadcrumbData([{name:'Alhena Research Lab',path:'/'},{name:'Results',path:'/#tools'},{name,path:`/tools/${id}`}])};
+ return <><script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(structured)}}/><script type="application/ld+json" dangerouslySetInnerHTML={{__html:jsonLd(crumbs)}}/><ToolProfile research={research} study={library.studies.find(study=>study.slug===research?.studySlug)} pilot={pilot as ToolSummary | undefined} comparisons={comparisons as ReportSummary[]}/></>;
 }

@@ -6,6 +6,7 @@ import { ReportEmailVerification } from './report-email-verification';
 import { PartsLegend, ScoreRow } from './score-bars';
 import { DemoLink } from './demo-link';
 import { fullAnswerSeconds } from '@/lib/score-parts';
+import { studyFindings } from '@/lib/study-findings';
 import { api, captureRange, date, score } from '@/lib/client';
 import { POLICY_LABEL, type PolicyStudyDetails, type PolicyStudySummary, type StudyMetric } from '@/lib/policy-study';
 
@@ -57,6 +58,7 @@ export function PolicyStudy({ study }: { study: PolicyStudySummary }) {
     finally { setBusy(false); }
   }
   const first = study.providers[0];
+  const findings = studyFindings(study);
   const deployments = study.providers.reduce((sum, p) => sum + p.registeredStores, 0);
   const stats: [number, string][] = [[deployments, 'storefront deployments'], [study.sample.capturedCoreContexts, 'conversations captured'], [study.sample.judgedCoreContexts, 'conversations judged'], [study.sample.guardrailContexts, 'guardrail tests'], [study.sample.auditedPcrDecisions, 'checkpoints judged and audited']];
   return <main id="main" className="study-page">
@@ -66,12 +68,18 @@ export function PolicyStudy({ study }: { study: PolicyStudySummary }) {
         <p className="study-kicker">Comparative study</p>
         <h1>{study.title}</h1>
         <p className="study-lede">{study.description}</p>
-        <p className="study-meta">Published {date(study.publishedAt)}. Captured {captureRange(study.captureStartAt, study.captureEndAt)}. Commissioned by {study.commissionedBy} using the {study.protocol} method.</p>
+        <p className="study-meta">Published <time dateTime={study.publishedAt}>{date(study.publishedAt)}</time>. Captured <time dateTime={`${study.captureStartAt}/${study.captureEndAt}`}>{captureRange(study.captureStartAt, study.captureEndAt)}</time>. Commissioned by {study.commissionedBy} using the <Link href="/studies/policy-resolution-v1">{study.protocol}</Link> method.</p>
       </div>
     </header>
     <section className="study-stats" aria-label="Study sample">
       <div className="shell study-stats-grid">{stats.map(([value, label]) => <div key={label}><strong>{value}</strong><span>{label}</span></div>)}</div>
     </section>
+    {findings.length > 0 && <section className="study-findings" aria-labelledby="study-findings">
+      <div className="shell study-findings-grid">
+        <h2 id="study-findings">Key findings</h2>
+        <ul>{findings.map(item => <li key={item}>{item}</li>)}</ul>
+      </div>
+    </section>}
     <section className="study-section" aria-labelledby="study-results">
       <div className="shell">
         <div className="section-intro"><h2 id="study-results">Results</h2><p>Scores out of 100 for the storefronts in this study. Each bar splits a lane composite into the points resolution, quality and speed add.</p></div>
@@ -128,10 +136,12 @@ export function PolicyStudy({ study }: { study: PolicyStudySummary }) {
           {details ? <><div className="form-secondary-actions">{details.downloads.map(item => <Button key={item.resource} disabled={busy} onClick={() => download(item)}>Download {item.resource === 'html' ? 'interactive report' : item.resource === 'bundle' ? 'evidence bundle' : item.resource}</Button>)}</div><p className="private-note">Each download retains the published bytes and SHA-256 pin. The method and approval receipt identify the reviewed publication inputs.</p></> : requested && !verified ? <ReportEmailVerification onVerified={() => { setVerified(true); void loadDetails(); }} /> : <Button className="study-evidence-button" disabled={busy} onClick={() => void loadDetails()}>{busy ? 'Loading…' : 'View detailed study'}</Button>}
         </div>
         {details && <EvidenceNode label="Evidence record" value={details.evidence} />}
-        <div className="study-demo">
-          <p><strong>Considering Alhena?</strong> See how its shopping and support agents would handle your customers’ questions.</p>
-          <DemoLink placement="study" className="btn btn-primary" />
-        </div>
+      </div>
+    </section>
+    <section className="study-demo-section" aria-label="Book a demo">
+      <div className="shell study-demo">
+        <p><strong>Considering Alhena?</strong> See how its shopping and support agents would handle your customers’ questions.</p>
+        <DemoLink placement="study" className="btn btn-primary" />
       </div>
     </section>
   </main>;

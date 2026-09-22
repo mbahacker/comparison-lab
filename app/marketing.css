@@ -662,6 +662,23 @@ h1,
   line-height: 1.7;
   color: var(--ink-soft);
 }
+.faq-list details p:has(+ .faq-points) {
+  padding-bottom: 8px;
+}
+.faq-points {
+  display: grid;
+  gap: 8px;
+  max-width: 40em;
+  margin: 0;
+  padding: 0 0 20px 18px;
+  list-style: disc;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+.faq-list details a {
+  color: var(--blue);
+  font-weight: 600;
+}
 
 /* Site footer */
 .site-footer {
@@ -953,6 +970,41 @@ h1,
 }
 .study-protected-evidence {
   padding-top: 0;
+  padding-bottom: 20px;
+}
+.study-findings {
+  padding: clamp(56px, 7vw, 88px) 0 0;
+}
+.study-findings-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 0.55fr) minmax(0, 1.45fr);
+  gap: 24px clamp(32px, 5vw, 80px);
+}
+.study-findings h2 {
+  font-family: var(--font-display);
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 450;
+  line-height: 1.1;
+  font-variation-settings: "SOFT" 100;
+}
+.study-findings ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.study-findings li {
+  padding: 14px 0;
+  border-top: 1px solid var(--rule);
+  font-size: 1.0625rem;
+  line-height: 1.55;
+  font-variant-numeric: tabular-nums;
+}
+.study-findings li:last-child {
+  font-size: 0.9375rem;
+  color: var(--quiet);
+}
+.study-demo-section {
+  padding-bottom: clamp(64px, 8vw, 104px);
 }
 .study-demo {
   display: flex;
@@ -960,7 +1012,6 @@ h1,
   justify-content: space-between;
   align-items: center;
   gap: 16px 32px;
-  margin-top: 20px;
   padding: 24px 32px;
   border: 1px solid var(--rule);
   border-radius: 16px;
@@ -1053,7 +1104,8 @@ h1,
   }
   .study-lanes,
   .study-limits,
-  .study-method-grid {
+  .study-method-grid,
+  .study-findings-grid {
     grid-template-columns: minmax(0, 1fr);
   }
   .cta-inner {

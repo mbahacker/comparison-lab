@@ -2,7 +2,7 @@ import { RubricWeights } from "@/components/lab/rubric-weights";
 import fs from "node:fs";
 import path from "node:path";
 import Link from "next/link";
-export const metadata = { title: "Quality-pilot-v1 rubric and historical scope", alternates: { canonical: '/methodology/quality-pilot-v1' } };
+export const metadata = { title: "Quality-pilot-v1 rubric and historical scope", description: "The historical quality-only pilot: 26 published answer-quality criteria across three storefronts and six conversations per tool. Kept for its original scores and capture dates.", alternates: { canonical: '/methodology/quality-pilot-v1' } };
 export default function Page() {
   const seed = JSON.parse(
     fs.readFileSync(

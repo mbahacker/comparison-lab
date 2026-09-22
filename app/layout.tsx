@@ -4,6 +4,7 @@ import "./marketing.css";
 import Link from "next/link";
 import { ResultsLink } from "@/components/lab/results-link";
 import { DemoLink } from "@/components/lab/demo-link";
+import { jsonLd, siteStructuredData } from "@/lib/server/public-data";
 
 // Resolve public social URLs from the deployment runtime, including Docker APP_URL.
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ export const metadata: Metadata = {
     siteName: "Alhena Research Lab",
     title: "Ecommerce AI agents, tested on real storefronts",
     description:
-      "Explore the latest ecommerce AI studies: shopping and support composites, policy-compliant resolution, quality, speed and the evidence behind each score.",
+      "Ecommerce AI shopping and support agents tested on live storefronts. Published resolution, answer quality and speed scores, with the evidence behind each one.",
   },
   twitter: { card: "summary_large_image" },
   title: {
@@ -23,7 +24,7 @@ export const metadata: Metadata = {
     template: "%s · Alhena Research Lab",
   },
   description:
-    "Compare ecommerce AI using the latest published research. Explore shopping and support composites, separate resolution, quality and speed scores, and conversation evidence.",
+    "Ecommerce AI shopping and support agents tested on live storefronts with the same customer conversations. Published resolution, answer quality and speed scores, with the evidence behind each one.",
   icons: {
     icon: "/brand/alhena-mark.svg",
     shortcut: "/brand/alhena-mark.svg",
@@ -40,8 +41,11 @@ export default function RootLayout({
       <head>
         <link rel="preload" href="/fonts/fraunces-var.woff2" as="font" type="font/woff2" crossOrigin="" />
         <link rel="preload" href="/fonts/dm-sans-var.woff2" as="font" type="font/woff2" crossOrigin="" />
+        <link rel="alternate" type="application/json" href="/study-scores.json" title="Published study summaries (JSON)" />
+        <link rel="alternate" type="application/json" href="/tool-scores.json" title="Current tool scores (JSON)" />
       </head>
       <body>
+        <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(siteStructuredData()) }} />
         <a className="skip-link" href="#main">
           Skip to content
         </a>
@@ -100,6 +104,7 @@ export default function RootLayout({
               <DemoLink placement="footer" />
               <a href="/tool-scores.json">Scores as JSON</a>
               <a href="/llms.txt">llms.txt</a>
+              <a href="/llms-full.txt">llms-full.txt</a>
             </nav>
             <nav className="footer-links" aria-label="About">
               <p>About</p>

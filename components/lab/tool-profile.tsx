@@ -5,6 +5,7 @@ import { ToolSummary, ReportSummary, score, date } from '@/lib/client';
 import { captureDates, ComparisonCard, Freshness } from './report-library';
 import type { ResearchTool } from '@/lib/research-library';
 import { POLICY_LABEL, type PolicyStudySummary, type StudyMetric } from '@/lib/policy-study';
+import { toolSummarySentence } from '@/lib/study-findings';
 
 function ResearchMetric({label,metric}:{label:string;metric:StudyMetric}) {
  return <div><p className="eyebrow">{label}</p><strong>{metric.value === null ? 'Not eligible' : `${score(metric.value)} / 100`}</strong><p className="private-note">{metric.explanation}</p></div>;
@@ -15,7 +16,7 @@ export function ToolProfile({research,pilot,study,comparisons}:{research?:Resear
  return <main id="main" className="shell report-page tool-profile">
   <Link href="/#tools" className="back-link"><ArrowLeft size={16}/>All evaluated tools</Link>
   {research ? <>
-   <div className="report-heading"><div><p className="eyebrow">LATEST APPROVED STUDY · {research.protocol}</p><h1>{research.name}</h1><p className="intro">Policy-compliant resolution, answer quality, full-answer speed and composite scores from the latest compatible approved study.</p><a className="text-link" href={research.website} target="_blank" rel="noreferrer">{new URL(research.website).hostname}<ExternalLink size={15}/></a></div></div>
+   <div className="report-heading"><div><p className="eyebrow">LATEST APPROVED STUDY · {research.protocol}</p><h1>{research.name}</h1><p className="intro">{toolSummarySentence(research)}</p><a className="text-link" href={research.website} target="_blank" rel="noreferrer">{new URL(research.website).hostname}<ExternalLink size={15}/></a></div></div>
    <p className="tool-capture-note">Captures <strong>{date(research.captureStartAt)} to {date(research.captureEndAt)}</strong>. Published {date(research.publishedAt)}. {research.registeredStores} registered storefronts. Selected by capture end date, then publication date.</p>
    <div className="caveat"><strong>Public-session scope</strong><p>Policy-compliant resolution includes a verified policy-required next step. These scores do not prove completed refunds, account actions or human-resolved orders. Coverage differs by lane and provider; this is an Alhena-commissioned study, not independent certification or a universal vendor ranking.</p></div>
    <div className="hero-actions"><Link className="button primary" href={`/studies/${research.studySlug}`}>Read the study and evidence <ArrowRight size={17}/></Link><Link className="button outline-button" href="/studies/policy-resolution-v1">Read the methodology</Link></div>

@@ -1,4 +1,4 @@
-export const metadata = { title: "Privacy" };
+export const metadata = { title: "Privacy", description: "What Alhena Research Lab collects when you verify a work email, request an evaluation or open detailed evidence, and how it is used.", alternates: { canonical: "/privacy" } };
 export default function Page() {
   return <main id="main" className="shell prose-page">
     <p className="eyebrow">YOUR INFORMATION</p><h1>Privacy</h1>
