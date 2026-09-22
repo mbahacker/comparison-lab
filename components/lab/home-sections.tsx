@@ -5,6 +5,7 @@ import type { PolicyLane, PolicyStudySummary } from "@/lib/policy-study";
 import type { ResearchTool } from "@/lib/research-library";
 import { COMPOSITE_WEIGHTS, type ScorePartKey } from "@/lib/score-parts";
 import { PART_NAMES, PartsLegend, ScoreRow } from "./score-bars";
+import { DemoLink } from "./demo-link";
 import { captureRange, date } from "@/lib/client";
 
 const LANES: { key: PolicyLane; label: string }[] = [{ key: "shopping", label: "Shopping" }, { key: "support", label: "Support" }];
@@ -128,15 +129,22 @@ export function HomeProcess({ study }: { study?: PolicyStudySummary }) {
 }
 
 export function HomeCallToAction() {
-  return <section className="cta-band" aria-labelledby="cta-title">
+  return <section className="cta-band" aria-label="Next steps">
     <div className="shell cta-inner">
-      <div>
-        <h2 id="cta-title">Put your AI agent to the test.</h2>
+      <div className="cta-panel">
+        <h2>Put your AI agent to the test.</h2>
         <p>Name your tool and three stores that use it, then verify your work email. We find two more, run the evaluation after review, and publish results that pass validation.</p>
+        <div className="cta-actions">
+          <Link className="btn btn-inverse" href="/request">Analyze your tool</Link>
+          <Link className="cta-link" href="/methodology">Read the methodology</Link>
+        </div>
       </div>
-      <div className="cta-actions">
-        <Link className="btn btn-inverse" href="/request">Analyze your tool</Link>
-        <Link className="cta-link" href="/methodology">Read the methodology</Link>
+      <div className="cta-panel cta-panel-demo">
+        <h2>See Alhena on your store.</h2>
+        <p>Considering Alhena? Book a demo to see how its shopping and support agents would handle your customers’ questions.</p>
+        <div className="cta-actions">
+          <DemoLink placement="home_cta" className="btn btn-primary" />
+        </div>
       </div>
     </div>
   </section>;

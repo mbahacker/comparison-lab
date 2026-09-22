@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { ReportEmailVerification } from './report-email-verification';
 import { PartsLegend, ScoreRow } from './score-bars';
+import { DemoLink } from './demo-link';
 import { fullAnswerSeconds } from '@/lib/score-parts';
 import { api, captureRange, date, score } from '@/lib/client';
 import { POLICY_LABEL, type PolicyStudyDetails, type PolicyStudySummary, type StudyMetric } from '@/lib/policy-study';
@@ -127,6 +128,10 @@ export function PolicyStudy({ study }: { study: PolicyStudySummary }) {
           {details ? <><div className="form-secondary-actions">{details.downloads.map(item => <Button key={item.resource} disabled={busy} onClick={() => download(item)}>Download {item.resource === 'html' ? 'interactive report' : item.resource === 'bundle' ? 'evidence bundle' : item.resource}</Button>)}</div><p className="private-note">Each download retains the published bytes and SHA-256 pin. The method and approval receipt identify the reviewed publication inputs.</p></> : requested && !verified ? <ReportEmailVerification onVerified={() => { setVerified(true); void loadDetails(); }} /> : <Button className="study-evidence-button" disabled={busy} onClick={() => void loadDetails()}>{busy ? 'Loading…' : 'View detailed study'}</Button>}
         </div>
         {details && <EvidenceNode label="Evidence record" value={details.evidence} />}
+        <div className="study-demo">
+          <p><strong>Considering Alhena?</strong> See how its shopping and support agents would handle your customers’ questions.</p>
+          <DemoLink placement="study" className="btn btn-primary" />
+        </div>
       </div>
     </section>
   </main>;

@@ -3,6 +3,7 @@ import "./globals.css";
 import "./marketing.css";
 import Link from "next/link";
 import { ResultsLink } from "@/components/lab/results-link";
+import { DemoLink } from "@/components/lab/demo-link";
 
 // Resolve public social URLs from the deployment runtime, including Docker APP_URL.
 export const dynamic = "force-dynamic";
@@ -64,9 +65,10 @@ export default function RootLayout({
               <ResultsLink className="nav-link" tab="tools">Results</ResultsLink>
               <Link className="nav-link nav-secondary" href="/studies">Studies</Link>
               <Link className="nav-link nav-secondary" href="/methodology">Methodology</Link>
-              <Link className="nav-cta" href="/request">
+              <Link className="nav-secondary-cta" href="/request">
                 Analyze your tool
               </Link>
+              <DemoLink placement="header" className="nav-cta" />
             </nav>
           </div>
         </header>
@@ -95,6 +97,7 @@ export default function RootLayout({
             <nav className="footer-links" aria-label="Evaluations">
               <p>Evaluations</p>
               <Link href="/request">Analyze your tool</Link>
+              <DemoLink placement="footer" />
               <a href="/tool-scores.json">Scores as JSON</a>
               <a href="/llms.txt">llms.txt</a>
             </nav>

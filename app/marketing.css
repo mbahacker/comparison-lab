@@ -64,6 +64,20 @@ h1,
 .site-header .nav-cta:hover {
   background: var(--blue-deep);
 }
+.site-header .nav-secondary-cta {
+  padding: 9px 15px;
+  border: 1px solid #cfd8e6;
+  border-radius: 10px;
+  font-weight: 600;
+  color: var(--ink);
+  transition: border-color 0.15s;
+}
+.site-header .nav-secondary-cta:hover {
+  border-color: var(--ink);
+}
+.site-header .nav-secondary-cta + .nav-cta {
+  margin-left: -16px;
+}
 
 /* Buttons */
 .btn {
@@ -559,7 +573,7 @@ h1,
   background: #715cd6;
 }
 
-/* Call to action */
+/* Call to action: evaluate a tool, or see Alhena */
 .cta-band {
   padding: clamp(64px, 8vw, 104px) 0;
   background: var(--ink);
@@ -567,27 +581,31 @@ h1,
 }
 .cta-inner {
   display: grid;
-  grid-template-columns: minmax(0, 1.4fr) auto;
-  align-items: end;
-  gap: 48px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 64px;
+}
+.cta-panel-demo {
+  padding-left: 64px;
+  border-left: 1px solid rgb(255 255 255 / 0.14);
 }
 .cta-band h2 {
-  font-size: clamp(2.25rem, 4.4vw, 3.5rem);
+  font-size: clamp(1.875rem, 2.8vw, 2.375rem);
   font-weight: 450;
-  line-height: 1.05;
+  line-height: 1.08;
 }
 .cta-band p {
-  margin-top: 18px;
-  max-width: 34em;
+  margin-top: 16px;
+  max-width: 30em;
   font-size: 1.0625rem;
   line-height: 1.65;
   color: #c4cedd;
 }
 .cta-actions {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 16px;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px 24px;
+  margin-top: 28px;
 }
 .cta-link {
   font-weight: 600;
@@ -936,6 +954,25 @@ h1,
 .study-protected-evidence {
   padding-top: 0;
 }
+.study-demo {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px 32px;
+  margin-top: 20px;
+  padding: 24px 32px;
+  border: 1px solid var(--rule);
+  border-radius: 16px;
+  background: var(--paper-cool);
+}
+.study-demo p {
+  max-width: 52em;
+  color: var(--ink-soft);
+}
+.study-demo strong {
+  color: var(--ink);
+}
 .study-evidence-panel {
   padding: clamp(28px, 4vw, 48px);
   border-radius: 20px;
@@ -1019,12 +1056,21 @@ h1,
   .study-method-grid {
     grid-template-columns: minmax(0, 1fr);
   }
+  .cta-inner {
+    gap: 48px;
+  }
+  .cta-panel-demo {
+    padding: 48px 0 0;
+    border-left: 0;
+    border-top: 1px solid rgb(255 255 255 / 0.14);
+  }
   .study-defs {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 @media (max-width: 640px) {
-  .site-header .nav-secondary {
+  .site-header .nav-secondary,
+  .site-header .nav-secondary-cta {
     display: none;
   }
   .site-header .header-inner nav {
