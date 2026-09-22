@@ -1,4 +1,5 @@
 import { ReportLibrary } from '@/components/lab/report-library';
+import { HomeCallToAction, HomeFaq, HomeHero, HomeMeasures, HomeProcess } from '@/components/lab/home-sections';
 import { getToolLibrary } from '@/lib/server/reuse';
 import { getResearchLibrary } from '@/lib/server/research-library';
 import { listReports } from '@/lib/server/evidence';
@@ -15,5 +16,15 @@ export default function Home() {
     publisher: publisher(),
     dataset: research.tools.map(t => ({ '@type': 'Dataset', name: `${t.name} policy-resolution evaluation`, url: publicUrl(`/tools/${t.id}`), measurementTechnique: t.protocol, temporalCoverage: `${t.captureStartAt}/${t.captureEndAt}`, citation: publicUrl(`/studies/${t.studySlug}`) })),
   };
-  return <><script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(data) }} /><ReportLibrary tools={historical.tools as ToolSummary[]} reports={listReports() as ReportSummary[]} studies={research.studies} latestTools={research.tools} /></>;
+  return <>
+    <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(data) }} />
+    <main id="main" className="home">
+      <HomeHero tools={research.tools} studies={research.studies} />
+      <HomeMeasures />
+      <HomeProcess study={research.studies[0]} />
+      <ReportLibrary tools={historical.tools as ToolSummary[]} reports={listReports() as ReportSummary[]} studies={research.studies} latestTools={research.tools} />
+      <HomeCallToAction />
+      <HomeFaq />
+    </main>
+  </>;
 }

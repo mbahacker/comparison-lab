@@ -10,7 +10,7 @@ The rubric and factual scoring definitions are identified and attributed in `rub
 
 ## Fonts
 
-DM Sans and Cormorant Garamond are distributed under the SIL Open Font License1.1. The license notices are included beside the fonts in `public/fonts/`.
+DM Sans and Fraunces are distributed under the SIL Open Font License 1.1. The license notices are included beside the fonts in `public/fonts/`. The variable WOFF2 files are the Latin subsets served by Google Fonts; `fraunces-soft-500.ttf` is Google Fonts' static SOFT 100, weight 500 instance, used for social preview images.
 
 ## UI and framework
 
@@ -22,4 +22,4 @@ Next.js, React, Radix UI, Shadcn components, Tailwind CSS, Lucide, and other dep
 
 ## Alhena brand assets
 
-The Alhena wordmark and icon in `public/brand/` are Alhena brand assets, reused from its existing website assets at the operator’s request. Source: https://alhena.ai/assets/images/icons/alhena-icon.svg. Alhena trademarks remain the property of their owner. The interface uses the current Alhena website palette, with the existing OFL-licensed DM Sans and Cormorant fonts. No proprietary website fonts were added.
+The Alhena wordmark and icon in `public/brand/` are Alhena brand assets, reused from its existing website assets at the operator’s request. Source: https://alhena.ai/assets/images/icons/alhena-icon.svg. Alhena trademarks remain the property of their owner. The interface uses the current Alhena website palette, with OFL-licensed DM Sans and Fraunces standing in for the website's licensed typefaces. No proprietary website fonts were added.

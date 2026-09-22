@@ -22,45 +22,62 @@
 }
 
 @font-face {
-  font-family: DMSans;
-  src: url("/fonts/dm-sans.ttf") format("truetype");
-  font-weight: 400;
+  font-family: "DM Sans";
+  src: url("/fonts/dm-sans-var.woff2") format("woff2");
+  font-weight: 300 700;
   font-display: swap;
 }
 @font-face {
-  font-family: DMSans;
-  src: url("/fonts/dm-sans-semibold.ttf") format("truetype");
-  font-weight: 600 800;
+  font-family: Fraunces;
+  src: url("/fonts/fraunces-var.woff2") format("woff2");
+  font-weight: 300 700;
   font-display: swap;
 }
-@font-face {
-  font-family: Cormorant;
-  src: url("/fonts/cormorant.ttf") format("truetype");
-  font-weight: 400 600;
-  font-display: swap;
-}
+/* Tokens. The brand values follow alhena.ai; --part-* colour the three score components. */
 :root {
-  --background: #f5f7fa;
-  --foreground: #14263a;
+  --background: #fbfcff;
+  --foreground: #0f172a;
   --card: #fff;
   --card-foreground: #14263a;
   --popover: #fff;
   --popover-foreground: #14263a;
-  --primary: #112a43;
+  --primary: #0866ff;
   --primary-foreground: #fff;
-  --secondary: #e9eef4;
-  --secondary-foreground: #14263a;
-  --muted: #edf1f6;
-  --muted-foreground: #617086;
+  --secondary: #eff6ff;
+  --secondary-foreground: #0f172a;
+  --muted: #f1f4fa;
+  --muted-foreground: #52617b;
   --accent: #e9eff6;
   --accent-foreground: #14263a;
   --destructive: #ac3427;
-  --border: #dce3eb;
-  --input: #c3ceda;
-  --ring: #b08137;
+  --border: #e2e7f0;
+  --input: #bac7da;
+  --ring: #0866ff;
   --radius: 0.5rem;
-  --navy: #10263c;
-  --gold: #a77931;
+  --navy: #0f172a;
+  --gold: #715cd6;
+  --chart-provider-1: #0866ff;
+  --chart-provider-2: #715cd6;
+  --chart-provider-3: #2193ab;
+  --chart-provider-4: #b76500;
+  --alhena-blue-soft: #eff6ff;
+  --alhena-purple-soft: #f3f0fe;
+  --alhena-teal-soft: #eaf8fb;
+  --alhena-orange-soft: #fff8ef;
+  --font-display: Fraunces, Georgia, serif;
+  --font-text: "DM Sans", Arial, sans-serif;
+  --ink: #0f172a;
+  --ink-soft: #334155;
+  --quiet: #5b6a82;
+  --rule: #e3e8f0;
+  --paper: #ffffff;
+  --paper-cool: #f5f7fb;
+  --blue: #0866ff;
+  --blue-deep: #0550cc;
+  --blue-soft: #eaf2ff;
+  --part-resolution: #0866ff;
+  --part-quality: #86b3ff;
+  --part-speed: #f0a33a;
 }
 @theme inline {
   --color-background: var(--background);
@@ -84,7 +101,7 @@
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 8px;
-  --font-sans: DMSans, Arial, sans-serif;
+  --font-sans: "DM Sans", Arial, sans-serif;
 }
 * {
   box-sizing: border-box;
@@ -93,10 +110,8 @@ body {
   margin: 0;
   background: var(--background);
   color: var(--foreground);
-  font:
-    16px/1.65 DMSans,
-    Arial,
-    sans-serif;
+  font: 16px/1.65 var(--font-text);
+  font-optical-sizing: auto;
 }
 h1,
 h2,
@@ -110,7 +125,7 @@ h2 {
   letter-spacing: -0.02em;
 }
 h1 {
-  font-family: Cormorant, Georgia, serif;
+  font-family: var(--font-display);
   font-weight: 500;
   font-size: clamp(2.5rem, 4.6vw, 4.6rem);
 }
@@ -329,7 +344,7 @@ summary:focus-visible {
 }
 .report-card h2 {
   margin: 21px 0 13px;
-  font-family: Cormorant, Georgia, serif;
+  font-family: var(--font-display);
   font-size: 2.45rem;
   font-weight: 500;
 }
@@ -604,7 +619,7 @@ summary:focus-visible {
   align-self: start;
 }
 .form-panel h2 {
-  font-family: Cormorant, Georgia, serif;
+  font-family: var(--font-display);
   font-size: 2.2rem;
   font-weight: 500;
   margin-bottom: 15px;
@@ -1551,30 +1566,7 @@ summary:focus-visible {
   min-width: 0;
 }
 
-/* Alhena brand: live website palette and public logo assets. */
-:root {
-  --background: #fbfcff;
-  --foreground: #0f172a;
-  --primary: #0866ff;
-  --primary-foreground: #fff;
-  --secondary: #eff6ff;
-  --secondary-foreground: #0f172a;
-  --muted: #f1f4fa;
-  --muted-foreground: #52617b;
-  --border: #e2e7f0;
-  --input: #bac7da;
-  --ring: #0866ff;
-  --navy: #0f172a;
-  --gold: #715cd6;
-  --chart-provider-1: #0866ff;
-  --chart-provider-2: #715cd6;
-  --chart-provider-3: #2193ab;
-  --chart-provider-4: #b76500;
-  --alhena-blue-soft: #eff6ff;
-  --alhena-purple-soft: #f3f0fe;
-  --alhena-teal-soft: #eaf8fb;
-  --alhena-orange-soft: #fff8ef;
-}
+/* Alhena brand: public logo assets and website palette (tokens live in the :root block above). */
 html {
   scroll-behavior: smooth;
   scroll-padding-top: 24px;
@@ -1746,7 +1738,7 @@ body {
   white-space: nowrap;
 }
 .hero-snapshot h2 {
-  font-family: DMSans, Arial, sans-serif;
+  font-family: var(--font-text);
   font-size: 1.6rem;
   font-weight: 600;
   letter-spacing: -0.06em;
@@ -1939,7 +1931,7 @@ body {
 .section-heading h2,
 .request-banner h2,
 .lab-faq h2 {
-  font-family: Cormorant, Georgia, serif;
+  font-family: var(--font-display);
   font-size: 2.7rem;
   font-weight: 600;
   letter-spacing: -0.025em;
