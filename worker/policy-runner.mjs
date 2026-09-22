@@ -2,6 +2,7 @@ import { prepareStorefront } from './storefront-setup.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { assertPolicyJob, EVIDENCE_SCHEMA, EXECUTION_PROFILE, QUESTION_MANIFEST, merchantId } from './policy-contract.mjs';
+import { createPolicyCapturer } from './policy-capture-cache.mjs';
 import { createPolicyInvoker } from './policy-call-cache.mjs';
 import { validJudgeDiagnostic } from './judge-errors.mjs';
 import { WorkerError } from './protocol.mjs';
@@ -36,7 +37,7 @@ export async function capturePolicies(browser,store,signal) {
     return sources;
   }finally{await context.close();}
 }
-export async function runPolicyJob(job,api,{rootDirectory=process.env.WORKER_DATA_DIR||'./data',adapters=[],startProxy=startPublicProxy,launchBrowser=launchCaptureBrowser,capture=captureConversation,collectPolicies=capturePolicies,loadReference=loadUpstream,call=providerStructuredResponse}={}){
+export async function runPolicyJob(job,api,{rootDirectory=process.env.WORKER_DATA_DIR||'./data',adapters=[],startProxy=startPublicProxy,launchBrowser=launchCaptureBrowser,capture=captureConversation,collectPolicies=capturePolicies,loadReference=loadUpstream,call=providerStructuredResponse,automaticModelRetries=2}={}){
   const plan=assertPolicyJob(job),lease={jobId:job.id,leaseToken:job.leaseToken,fencingToken:job.fencingToken};
   const directory=path.resolve(rootDirectory,String(job.id).replace(/[^a-zA-Z0-9_-]/g,'_'),`attempt-${job.fencingToken}`);await fs.mkdir(directory,{recursive:true,mode:0o700});
   const control=new AbortController();let beating=false,proxy,browser;
@@ -46,7 +47,8 @@ export async function runPolicyJob(job,api,{rootDirectory=process.env.WORKER_DAT
   const evidence={schema:EVIDENCE_SCHEMA,protocol:'policy-resolution-v1',protocolSnapshotSha256:job.protocol.sha256,executionProfile:EXECUTION_PROFILE,questionManifest:QUESTION_MANIFEST,providers:job.providers,captures:[],sources:[],judgments:[]};
   const save=()=>fs.writeFile(path.join(directory,'evidence.private.json'),JSON.stringify(evidence,null,2),{mode:0o600});
   const cacheDirectory=path.resolve(directory,'..','validated-call-cache');await fs.mkdir(cacheDirectory,{recursive:true,mode:0o700});
-  const invoke=createPolicyInvoker({cacheDirectory,fencingToken:job.fencingToken,signal:control.signal,call});
+  const invoke=createPolicyInvoker({cacheDirectory,fencingToken:job.fencingToken,signal:control.signal,call,automaticRetries:automaticModelRetries});
+  const collectCapture=createPolicyCapturer({cacheDirectory,directory,fencingToken:job.fencingToken,signal:control.signal,capture,automaticRetries:2});
   try{
     const upstream=await loadReference();proxy=await startProxy();browser=await launchBrowser(proxy.url);
     control.signal.addEventListener('abort',()=>browser.close().catch(()=>{}),{once:true});
@@ -61,12 +63,8 @@ export async function runPolicyJob(job,api,{rootDirectory=process.env.WORKER_DAT
       try{policySources=JSON.parse(await fs.readFile(policyFile,'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;policySources=await collectPolicies(browser,store,control.signal);await fs.writeFile(policyFile,JSON.stringify(policySources),{mode:0o600,flag:'wx'});}
       evidence.sources.push(...policySources);await save();
       for(const planned of contexts){
-        control.signal.throwIfAborted();const captureFile=path.join(cacheDirectory,planned.id+'-capture.json'),intentFile=path.join(cacheDirectory,planned.id+'-capture-intent.json');let captured;
-        try{captured=JSON.parse(await fs.readFile(captureFile,'utf8'));const raw=structuredClone(captured);delete raw.source_capture_sha256;if(sha256(JSON.stringify(raw))!==captured.source_capture_sha256)throw new WorkerError('resume_conflict','Retained capture hash changed');}
-        catch(error){if(error.code!=='ENOENT')throw error;try{await fs.access(intentFile);throw new WorkerError('capture_outcome_unknown','An interrupted capture needs operator review before replay.');}catch(e){if(e.code!=='ENOENT')throw e;}
-          await fs.writeFile(intentFile,JSON.stringify({id:planned.id,startedAt:new Date().toISOString()}),{mode:0o600,flag:'wx'});
-          captured=await capture({browser,provider,store,mode:planned.mode,jobDirectory:directory,adapters,upstream,signal:control.signal,scenario:planned,policyProfile:true});await fs.writeFile(captureFile,JSON.stringify(captured),{mode:0o600,flag:'wx'});
-        }
+        control.signal.throwIfAborted();
+        const captured=await collectCapture({browser,provider,store,mode:planned.mode,adapters,upstream,scenario:planned,policyProfile:true});
         evidence.captures.push(captured);await save();if(planned.guardrail)continue;
         const packet=qualityPackets(captured,upstream); let quality=null,pcrResult=null;
         if(packet.eligible){const primary=await invoke(qualityPrimaryRequest(packet,upstream.rubricText),planned.id+'-quality-primary');const audit=await invoke(qualityAuditRequest(packet,validateQualityPrimary(packet,primary.value),upstream.rubricText),planned.id+'-quality-audit');quality={primary,audit};}

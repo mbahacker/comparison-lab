@@ -119,3 +119,93 @@ test('legacy bare request intent remains unknown even after a worker upgrade', a
   await fs.writeFile(path.join(cacheDirectory, name + '-request.json'), JSON.stringify({ request, sha256: digest(request), startedAt: new Date().toISOString() }));
   await assert.rejects(createPolicyInvoker({ cacheDirectory, fencingToken: 100, call: () => assert.fail('Historical unknown must not be called') })(request, 'audit'), error => error.code === 'model_outcome_unknown');
 }));
+
+test('automatic recovery uses exactly two bounded delays and the unchanged request/profile, then caches success', async () => fixture(async cacheDirectory => {
+  let calls = 0; const waits = [], sent = [];
+  const invoke = createPolicyInvoker({ cacheDirectory, fencingToken: 1, automaticRetries: 2,
+    sleep: async milliseconds => { waits.push(milliseconds); },
+    call: async input => {
+      sent.push(input);
+      if (++calls === 1) throw rejection('judge_busy', 429);
+      if (calls === 2) throw rejection('incomplete_cli_result');
+      return result;
+    },
+  });
+  const accepted = await invoke(request, 'audit');
+  assert.deepEqual(waits, [2000, 5000]); assert.equal(calls, 3);
+  for (const input of sent) assert.deepEqual(input, { ...request, ...POLICY_EXECUTION, signal: undefined });
+  assert.deepEqual(await invoke(request, 'audit'), accepted); assert.equal(calls, 3);
+  const files = await fs.readdir(cacheDirectory);
+  assert.equal(files.filter(name => name.endsWith('-request.json')).length, 3);
+  assert.equal(files.filter(name => name.endsWith('-rejection.json')).length, 2);
+  for (const index of [1, 2]) {
+    const intent = JSON.parse(await fs.readFile(path.join(cacheDirectory, `audit-${digest(request)}-retry-${index}-request.json`), 'utf8'));
+    const previous = JSON.parse(await fs.readFile(path.join(cacheDirectory, `audit-${digest(request)}${index === 1 ? '' : '-retry-1'}-rejection.json`), 'utf8'));
+    assert.deepEqual(intent.retry, { kind: 'automatic', delayMs: waits[index - 1], maximumAutomaticRetries: 2, previousRejectionSha256: digest(previous) });
+  }
+}));
+
+test('automatic stage cap survives restart and a newer fence; explicit operator mode remains available after exhaustion', async () => fixture(async cacheDirectory => {
+  let calls = 0, sleeps = 0;
+  const fail = async () => { calls++; throw rejection(); };
+  await assert.rejects(createPolicyInvoker({ cacheDirectory, fencingToken: 1, automaticRetries: 2, call: fail,
+    sleep: async () => { if (++sleeps === 2) throw Error('Offline simulated process interruption during backoff'); },
+  })(request, 'audit'), /process interruption/);
+  assert.equal(calls, 2);
+  await assert.rejects(createPolicyInvoker({ cacheDirectory, fencingToken: 2, automaticRetries: 2, call: fail, sleep: async () => {} })(request, 'audit'), /invalid_structured_output/);
+  assert.equal(calls, 3);
+  const before = new Map(await Promise.all((await fs.readdir(cacheDirectory)).map(async name => [name, await fs.readFile(path.join(cacheDirectory, name), 'utf8')])));
+  for (const fencingToken of [2, 3, 10]) {
+    await assert.rejects(createPolicyInvoker({ cacheDirectory, fencingToken, automaticRetries: 2, call: fail, sleep: async () => assert.fail('Exhausted budget must not delay') })(request, 'audit'), e => e.code === 'model_rejection_requires_retry');
+  }
+  assert.equal(calls, 3);
+  const recovered = await createPolicyInvoker({ cacheDirectory, fencingToken: 11, call: async () => { calls++; return result; } })(request, 'audit');
+  assert.equal(calls, 4); assert.equal(recovered.metadata.requestSha256, digest(request));
+  for (const [name, bytes] of before) assert.equal(await fs.readFile(path.join(cacheDirectory, name), 'utf8'), bytes);
+  const operatorIntent = JSON.parse(await fs.readFile(path.join(cacheDirectory, `audit-${digest(request)}-retry-3-request.json`), 'utf8'));
+  assert.equal(operatorIntent.retry.kind, 'operator');
+}));
+
+test('automatic recovery never repeats credential/config/input errors or uncertain execution outcomes', async () => {
+  const errors = [
+    rejection('unauthorized', 401), rejection('judge_auth_missing', 503), rejection('invalid_request', 400),
+    rejection('invalid_execution_profile', 400), rejection('invalid_json', 400), rejection('request_too_large', 413),
+    rejection('cli_spawn_failed', 503), rejection('cli_failed'), rejection('unexpected_cli_model'), rejection('ambiguous_cli_model'),
+    rejection('judge_timeout', 504), rejection('judge_cancelled', 499), rejection('judge_failed', 500),
+    new WorkerError('model_request_failed', 'Private judge returned 422'), new Error('Network outcome unknown'),
+  ];
+  for (const error of errors) await fixture(async cacheDirectory => {
+    let calls = 0;
+    const options = { cacheDirectory, automaticRetries: 2, call: async () => { calls++; throw error; }, sleep: async () => assert.fail('Must not back off or retry this error') };
+    await assert.rejects(createPolicyInvoker({ ...options, fencingToken: 1 })(request, 'audit'));
+    await assert.rejects(createPolicyInvoker({ ...options, fencingToken: 2 })(request, 'audit'));
+    assert.equal(calls, 1);
+  });
+});
+
+test('unknown outcome during an automatic retry remains blocked across later restarts', async () => fixture(async cacheDirectory => {
+  let calls = 0;
+  const options = { cacheDirectory, automaticRetries: 2, sleep: async () => {}, call: async () => {
+    if (++calls === 1) throw rejection();
+    throw new Error('Lost automatic retry response');
+  } };
+  await assert.rejects(createPolicyInvoker({ ...options, fencingToken: 1 })(request, 'audit'), /Lost automatic/);
+  await assert.rejects(createPolicyInvoker({ ...options, fencingToken: 2 })(request, 'audit'), e => e.code === 'model_outcome_unknown');
+  assert.equal(calls, 2);
+}));
+
+test('real backoff is abortable and writes no new intent before the wait finishes', async () => fixture(async cacheDirectory => {
+  const control = new AbortController(); let calls = 0;
+  const timer = setTimeout(() => control.abort(new Error('Stop retry wait')), 20);
+  try {
+    await assert.rejects(createPolicyInvoker({ cacheDirectory, fencingToken: 1, signal: control.signal, automaticRetries: 2,
+      call: async () => { calls++; throw rejection(); },
+    })(request, 'audit'), e => e.name === 'AbortError' || /Stop retry wait/.test(e.message));
+    assert.equal(calls, 1);
+    assert.equal((await fs.readdir(cacheDirectory)).filter(name => name.endsWith('-request.json')).length, 1);
+  } finally { clearTimeout(timer); }
+}));
+
+test('automatic retry configuration cannot exceed the fixed allowance', () => {
+  for (const automaticRetries of [-1, 3, 0.5, true, '2', null]) assert.throws(() => createPolicyInvoker({ cacheDirectory: '/unused', fencingToken: 1, call: () => {}, automaticRetries }), /must be 0, 1 or 2/);
+});

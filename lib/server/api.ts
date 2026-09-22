@@ -249,7 +249,7 @@ async function claimJob() {
     for (const stopped of interrupted) {
       db().prepare("UPDATE jobs SET state='needs_review',updated_at=?,error='Policy run interrupted; retained artifacts require review before resume.' WHERE id=?").run(iso(),stopped.id);
       db().prepare("UPDATE requests SET status='needs_review',updated_at=?,error='Evaluation was interrupted. Completed evidence has been retained for review.' WHERE id=?").run(iso(),stopped.request_id);
-      enqueueMail(`job:${stopped.id}:interrupted:${stopped.attempt}`,c.adminEmail,'Policy evaluation needs recovery',`Request ${stopped.request_id} stopped responding. Review retained artifacts before an explicit retry. Completed calls are never silently replayed.`);
+      enqueueMail(`job:${stopped.id}:interrupted:lease:${stopped.fencing_token}`,c.adminEmail,'Policy evaluation needs recovery',`Request ${stopped.request_id} stopped responding. Review retained artifacts before an explicit retry. Completed calls are never silently replayed.`);
     }
     const exhausted = db().prepare("SELECT * FROM jobs WHERE state='running' AND lease_expires_at <= ? AND attempt >= ?").all(now, c.maxAttempts) as Row[];
     for (const failed of exhausted) {
@@ -349,8 +349,8 @@ async function failJob(request: Request) {
     db().prepare('UPDATE requests SET status=?,updated_at=?,error=? WHERE id=?').run(state, iso(), publicMessage, job.request_id);
     if (!retry) {
       const row = requestRow(job.request_id); const user = requester(row);
-      enqueueMail(`job:${job.id}:needs-review:${job.attempt}`, config().adminEmail, `Comparison needs attention: ${requestTitle(row)}`, `The approved run stopped without publishing.\n\nRequest: ${row.id}\nFailure code: ${code}\nWorker diagnostic: ${message}\n\nInspect the deployment adapters or evidence and use the administrator CLI to retry when appropriate.`);
-      enqueueMail(`request:${row.id}:paused:${job.attempt}`, user.email, JSON.parse(row.providers_json).length === 1 ? 'Your tool evaluation needs additional review' : 'Your comparison needs additional review', `Hi ${user.name},\n\nYour evaluation could not be completed automatically and needs operator review. Incomplete results have not been published.\n\nPrivate status:\n${statusUrl(row.id)}`);
+      enqueueMail(`job:${job.id}:needs-review:lease:${job.fencing_token}`, config().adminEmail, `Comparison needs attention: ${requestTitle(row)}`, `The approved run stopped without publishing.\n\nRequest: ${row.id}\nFailure code: ${code}\nWorker diagnostic: ${message}\n\nInspect the deployment adapters or evidence and use the administrator CLI to retry when appropriate.`);
+      enqueueMail(`request:${row.id}:paused:lease:${job.fencing_token}`, user.email, JSON.parse(row.providers_json).length === 1 ? 'Your tool evaluation needs additional review' : 'Your comparison needs additional review', `Hi ${user.name},\n\nYour evaluation could not be completed automatically and needs operator review. Incomplete results have not been published.\n\nPrivate status:\n${statusUrl(row.id)}`);
     }
     return state;
   });

@@ -18,7 +18,7 @@ function captureFixture({scenario:s}) {
 async function harness(fn) {
   const rootDirectory=await fs.mkdtemp(path.join(os.tmpdir(),'policy-recovery-'));
   const events=[];
-  const defaults={rootDirectory,startProxy:async()=>({url:'http://unused.example',close:async()=>{}}),launchBrowser:async()=>({close:async()=>{}}),collectPolicies:async()=>[],loadReference:async()=>upstream};
+  const defaults={rootDirectory,automaticModelRetries:0,startProxy:async()=>({url:'http://unused.example',close:async()=>{}}),launchBrowser:async()=>({close:async()=>{}}),collectPolicies:async()=>[],loadReference:async()=>upstream};
   try{await fn(defaults,async(route,data)=>events.push({route,data}),events);}finally{await fs.rm(rootDirectory,{recursive:true,force:true});}
 }
 test('retry retains completed capture and model response; ambiguous audit is not called again',async()=>harness(async(defaults,api)=>{

@@ -1,4 +1,5 @@
 import { prepareStorefront } from './storefront-setup.mjs';
+import { scanActiveFrames, createSubmissionJournal } from './browser-recovery.mjs';
 import reviewedAdapters from './adapters.json' with { type: 'json' };
 import { observedProviderUrls, publicHost } from './provider-fingerprint.mjs';
 import { chromium } from 'playwright';
@@ -37,24 +38,25 @@ async function visible(locator) {
   return result;
 }
 async function candidates(page) {
-  const found = [];
-  for (const frame of page.frames()) {
+  return scanActiveFrames(page, async frame => {
+    const found = [];
     for (const input of await visible(frame.locator('textarea, input[type="text"], [contenteditable="true"][role="textbox"], [contenteditable="true"][data-placeholder]'))) {
       const meta = await input.evaluate(el => ({ hint: [el.getAttribute('placeholder'), el.getAttribute('aria-label'), el.getAttribute('data-placeholder'), el.id, el.getAttribute('name')].join(' '), tag: el.tagName, type: el.getAttribute('type') }));
       const frameChat = /chat|gleen|alhena|gorgias|messenger|assistant/i.test(frame.url());
       if (CHAT.test(meta.hint) && !/search|newsletter|subscribe|phone|email|order number/i.test(meta.hint) || (frameChat && meta.tag === 'TEXTAREA')) found.push({ frame, input, frameChat });
     }
-  }
-  return found;
+    return found;
+  });
 }
-async function openChat(page, adapter) {
+export async function openChat(page, adapter) {
   // Only known benign dismissal choices; never subscribe or consent to marketing.
-  for (const frame of page.frames()) {
+  await scanActiveFrames(page, async frame => {
     for (const name of [/^reject all$/i, /^no thanks$/i, /^decline$/i, /^dismiss popup$/i, /^maybe later$/i]) {
       const choices = await visible(frame.getByRole('button', { name }));
-      if (choices.length === 1) await choices[0].click({ timeout: 1500 }).catch(() => {});
+      if (choices.length === 1) await choices[0].click({ timeout: 1500 }).catch(error => { if (error.name !== 'TimeoutError') throw error; });
     }
-  }
+    return [];
+  });
   if (adapter?.composer) {
     if (adapter.launcher) {
       const launch = page.locator(adapter.launcher);
@@ -65,12 +67,10 @@ async function openChat(page, adapter) {
       await launch.click({ timeout: 5000 });
     }
     for (let attempt = 0; attempt < 12; attempt++) {
-      const found = [];
-      for (const frame of page.frames()) {
-        if (adapter.frameUrlContains && !frame.url().includes(adapter.frameUrlContains)) continue;
-        const input = frame.locator(adapter.composer);
-        for (const item of await visible(input)) found.push({ frame, input: item, frameChat: true });
-      }
+      const found = await scanActiveFrames(page, async frame => {
+        if (adapter.frameUrlContains && !frame.url().includes(adapter.frameUrlContains)) return [];
+        return (await visible(frame.locator(adapter.composer))).map(input => ({ frame, input, frameChat: true }));
+      });
       if (found.length === 1) return found[0];
       if (found.length > 1) throw new WorkerError('needs_adapter', 'Configured composer is ambiguous');
       await delay(1000);
@@ -88,13 +88,13 @@ async function openChat(page, adapter) {
     const inputs = await candidates(page);
     if (inputs.length === 1) return inputs[0];
     if (inputs.length > 1) throw new WorkerError('needs_adapter', 'More than one possible chat composer');
-    let launchers = [];
-    for (const frame of page.frames()) {
-      launchers.push(...await visible(frame.getByRole('button', { name: LAUNCHER })));
-      if (!launchers.length) launchers.push(...await visible(frame.locator('#gorgias-chat-messenger-button, #gleen-chat-button, [data-testid="chat-launcher"], button[aria-label="Open chat"]')));
-    }
+    let launchers = await scanActiveFrames(page, async frame => {
+      const found = await visible(frame.getByRole('button', { name: LAUNCHER }));
+      if (!found.length) found.push(...await visible(frame.locator('#gorgias-chat-messenger-button, #gleen-chat-button, [data-testid="chat-launcher"], button[aria-label="Open chat"]')));
+      return found;
+    });
     launchers = [...new Set(launchers)];
-    if (launchers.length === 1) await launchers[0].click({ timeout: 2000 }).catch(() => {});
+    if (launchers.length === 1) await launchers[0].click({ timeout: 2000 }).catch(error => { if (error.name !== 'TimeoutError') throw error; });
     else if (launchers.length > 1) throw new WorkerError('needs_adapter', 'More than one possible chat launcher');
     await delay(1500);
   }
@@ -189,7 +189,9 @@ export async function captureConversation({ browser, provider, store, mode, jobD
   const capture = { id, kind: 'live', vendor: provider.name, store: store.name, mode, theme: planned?.theme || QUESTIONS[mode].key, date: new Date().toISOString().slice(0, 10), captured_at: new Date().toISOString(), url: url.href,
     capture_metadata: { sessionIsolation: 'Fresh nonpersistent browser context for this conversation; logged out; no shared storage', extraction: 'Visible widget transcript after exact shopper-message echo; links preserved', provider_attribution: null, timing_note: 'Observed send-to-final-text-change; five seconds stability required. Quality-only protocol; no latency composite.', adapter: adapter?.id || 'generic-visible-chat-v1' }, turns: [] };
   const abort = () => context.close().catch(() => {}); signal?.addEventListener('abort', abort, { once: true });
+  let submissionJournal;
   try {
+    submissionJournal = await createSubmissionJournal(jobDirectory, id);
     await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await delay(4000);
     capture.capture_metadata.storefront_setup = await prepareStorefront(page, {signal});
@@ -213,11 +215,13 @@ export async function captureConversation({ browser, provider, store, mode, jobD
         }
       }
       await surface.input.fill(question);
-      const sentAt = Date.now();
-      await surface.input.press('Enter');
+      await submissionJournal.beforeSend(i + 1);
       capture.turns.push({ turn: i + 1, question, reply: '', speaker: 'unknown', response_complete: false,
-        complete_ms: null, handover: false, unsent: false, sent_at: new Date(sentAt).toISOString(), completed_at: null, links: [], author_verified: false, author_evidence: null });
+        complete_ms: null, handover: false, unsent: false, sent_at: null, completed_at: null, links: [], author_verified: false, author_evidence: null });
       await fs.writeFile(file, JSON.stringify(capture, null, 2), { mode: 0o600 });
+      const sentAt = Date.now();
+      capture.turns[i].sent_at = new Date(sentAt).toISOString();
+      await surface.input.press('Enter');
       let last = '', lastChange = sentAt, reply = null, after = null;
       const timeout = policyProfile ? 120000 : Math.min(180000, Math.max(10000, Number(process.env.TURN_TIMEOUT_MS) || 120000));
       while (Date.now() - sentAt < timeout) {
@@ -265,15 +269,17 @@ export async function captureConversation({ browser, provider, store, mode, jobD
     await fs.writeFile(file, JSON.stringify(capture, null, 2), { mode: 0o600 });
     return capture;
   } catch (error) {
+    const recovery = submissionJournal?.recovery(error, signal);
+    if (recovery) error.captureRecovery = recovery;
     if (policyProfile && ['capture_timeout', 'human_handover', 'capture_blocked'].includes(error.code)) {
       finalizePolicyCapture(capture, planned, error.code);
       capture.source_capture_sha256 = sha256(JSON.stringify(capture));
       await fs.writeFile(file, JSON.stringify(capture, null, 2), { mode: 0o600 });
       return capture;
     }
-    await fs.writeFile(file, JSON.stringify({ ...capture, stop_reason: { code: error.code || 'capture_error', message: error.message } }, null, 2), { mode: 0o600 });
+    await fs.writeFile(file, JSON.stringify({ ...capture, stop_reason: { code: error.code || 'capture_error', message: error.message }, ...(recovery ? { capture_recovery: recovery } : {}) }, null, 2), { mode: 0o600 });
     throw error;
-  } finally { signal?.removeEventListener('abort', abort); await context.close(); }
+  } finally { signal?.removeEventListener('abort', abort); await context.close().catch(() => {}); }
 }
 
 /** @param {any} capture @param {any} planned @param {string|null} stop */
