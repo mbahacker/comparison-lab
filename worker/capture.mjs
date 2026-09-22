@@ -27,9 +27,17 @@ export function extractTurn(snapshot, question, allowShort = false) {
   if (!reply || (!allowShort && (STALL.test(reply) || reply.length < 25 || reply.split(/\s+/).length < 4))) return null;
   return reply;
 }
-export function captureStopReason(text) {
-  if (HUMAN.test(text)) return 'human_handover';
-  if (BLOCKED.test(text)) return 'capture_blocked';
+export function captureStopReason(text, snapshot = null) {
+  // The queue plus End chat must follow positively attributed AI text, rather
+  // than occur within an assistant quotation about contacting support.
+  const queue = /\n\s*Waiting for (?:an? )?agent[.…]*\s*\n\s*End chat\s*$/i.exec(text);
+  const attributed = snapshot?.author_messages?.map(message => message.text).join('\n').trim();
+  const normalized = value => value.replace(/\s+/g, ' ').trim();
+  const queued = queue && attributed && snapshot.question_anchor_found && snapshot.unknown_author_messages === 0 &&
+    normalized(text.slice(0, queue.index)).endsWith(normalized(attributed));
+  const recent = text.slice(-4000);
+  if (HUMAN.test(recent) || queued) return 'human_handover';
+  if (BLOCKED.test(recent)) return 'capture_blocked';
   return null;
 }
 async function visible(locator) {
@@ -236,7 +244,7 @@ export async function captureConversation({ browser, provider, store, mode, jobD
             Object.assign(capture.turns[i], { reply: observedReply, speaker: 'ai', author_verified: true, author_evidence: author });
           }
         }
-        const stop = captureStopReason(after.text.slice(-4000));
+        const stop = captureStopReason(after.text, after);
         if (stop) {
           capture.turns[i].handover = stop === 'human_handover';
           throw new WorkerError(stop, 'Conversation stopped at human handover or access gate');
