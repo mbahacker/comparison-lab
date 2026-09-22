@@ -82,6 +82,50 @@ test('CLI timeout, cancellation, output limit and nonzero exit expose sanitized 
   await assert.rejects(runClaude(request, { token, spawnImpl: fakeProcess(child => { child.stderr.write(token); child.emit('close', 1); }) }), error => error.code === 'cli_failed' && !error.message.includes(token));
 });
 
+test('exit 1 classifies only complete same-session turn/output exhaustion, without exposing error text', async () => {
+  for (const [subtype, code] of [['error_max_turns', 'incomplete_cli_result'], ['error_max_structured_output_retries', 'invalid_structured_output']]) {
+    await assert.rejects(runClaude(request, { token, spawnImpl: fakeProcess((child, _binary, args) => {
+      child.stdout.write(JSON.stringify({ type: 'result', subtype, is_error: true,
+        session_id: args[args.indexOf('--session-id') + 1], errors: [token, request.instructions], permission_denials: [] }));
+      child.stderr.write(token); child.emit('close', 1);
+    }) }), error => {
+      assert.equal(error.code, code); assert.equal(error.status, 422);
+      assert.equal(error.message, code);
+      assert.equal(JSON.stringify(error).includes(token), false);
+      assert.equal(JSON.stringify(error).includes(request.instructions), false);
+      return true;
+    });
+  }
+});
+
+test('failed exits never accept success or infer retryability from malformed, foreign or generic errors', async () => {
+  const cases = [
+    { patch: { subtype: 'error_during_execution', errors: ['authentication_error rate_limit_error error_max_turns'] } },
+    { patch: { subtype: 'error_max_budget_usd' } },
+    { patch: { subtype: 'unknown_error' } },
+    { patch: { session_id: 'different-session' } },
+    { patch: { is_error: false } },
+    { patch: { type: 'assistant' } },
+    { patch: { errors: 'error_max_turns' } },
+    { patch: { errors: [{ code: 'error_max_turns' }] } },
+    { patch: { structured_output: { ok: true } } },
+    { patch: { permission_denials: [{}] } },
+    { patch: { permission_denials: {} } },
+    { exitCode: 2 }, { exitCode: null },
+    { raw: '{"type":"result"' }, { raw: 'error_max_turns ' + token },
+    { success: true },
+  ];
+  for (const fixture of cases) {
+    await assert.rejects(runClaude(request, { token, spawnImpl: fakeProcess((child, _binary, args) => {
+      const sessionId = args[args.indexOf('--session-id') + 1];
+      const value = fixture.success ? result(sessionId) : { type: 'result', subtype: 'error_max_turns',
+        is_error: true, session_id: sessionId, errors: [token], permission_denials: [], ...fixture.patch };
+      child.stdout.write(fixture.raw ?? JSON.stringify(value));
+      child.stderr.write(token); child.emit('close', Object.hasOwn(fixture, 'exitCode') ? fixture.exitCode : 1);
+    }) }), error => error.code === 'cli_failed' && error.message === 'cli_failed' && !JSON.stringify(error).includes(token));
+  }
+});
+
 test('a real SIGTERM-resistant descendant cannot outlive an exited CLI leader', async () => {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), 'judge-process-test-'));
   const pidFile = path.join(root, 'descendant.pid');

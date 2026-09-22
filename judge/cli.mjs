@@ -56,6 +56,21 @@ export function decodeResult(output, schema, requestedModel, sessionId) {
     model: models[0], requested_model: requestedModel, response_id: result.session_id,
     usage: result.usage, created_at: new Date().toISOString() } };
 }
+function rejectedExit(output, code, sessionId) {
+  // Exit 1 can carry a complete SDK error result. Only explicit, same-session
+  // turn/structured-output exhaustion is retryable; never infer causes from
+  // free-form errors or stderr, or accept a success value from a failed process.
+  if (code !== 1) return new JudgeError('cli_failed');
+  let result;
+  try { result = JSON.parse(output); } catch { return new JudgeError('cli_failed'); }
+  if (result?.type !== 'result' || result.is_error !== true || result.session_id !== sessionId
+    || result.structured_output != null || !Array.isArray(result.errors)
+    || result.errors.some(error => typeof error !== 'string')
+    || (result.permission_denials !== undefined && (!Array.isArray(result.permission_denials) || result.permission_denials.length !== 0))) return new JudgeError('cli_failed');
+  if (result.subtype === 'error_max_turns') return new JudgeError('incomplete_cli_result');
+  if (result.subtype === 'error_max_structured_output_retries') return new JudgeError('invalid_structured_output');
+  return new JudgeError('cli_failed');
+}
 export async function runClaude(request, { token, signal, spawnImpl = spawn, timeoutMs, maxOutputBytes = 300000, tempRoot = os.tmpdir(), binary = '/usr/local/bin/claude' } = {}) {
   if (typeof token !== 'string' || !token.trim()) throw new JudgeError('judge_auth_missing', 503);
   const settings = settingsFor(request);
@@ -99,7 +114,7 @@ export async function runClaude(request, { token, signal, spawnImpl = spawn, tim
       child.stdin.on('error', () => { /* exit/error handler supplies a sanitized result */ });
       child.on('close', code => {
         if (failure) return finish(failure);
-        if (code !== 0) return finish(new JudgeError('cli_failed'));
+        if (code !== 0) return finish(rejectedExit(Buffer.concat(output).toString('utf8'), code, sessionId));
         try {
           const result = decodeResult(Buffer.concat(output).toString('utf8'), request.schema, request.model, sessionId);
           result.metadata = { ...result.metadata, ...executionMetadata({ ...settings, timeoutMs: executionTimeout }) };
