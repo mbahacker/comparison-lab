@@ -7,6 +7,46 @@ const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
 // Never match generic "I agree" buttons or modify cookie storage directly.
 export async function prepareStorefront(page, { signal, sleep = pause } = {}) {
   const record = { version: 'storefront-setup-v1', hostname: publicHost(page.url()), actions: [] };
+  if (record.hostname === 'gap.com') {
+    signal?.throwIfAborted();
+    // Gap publishes its chat entry point on Contact Us; the homepage does not
+    // reliably mount the launcher. Keep this same-merchant navigation explicit.
+    const entry='https://www.gap.com/customer-service/contact-us?cid=81270';
+    if (page.url() !== entry) {
+      await page.goto(entry,{waitUntil:'domcontentloaded',timeout:45000});
+      if(publicHost(page.url())!=='gap.com')throw new WorkerError('capture_blocked','Gap contact page left the approved merchant');
+      record.actions.push({action:'open-published-chat-entry',url:page.url(),at:new Date().toISOString()});
+    }
+    for(let attempt=0;attempt<8;attempt++) {
+      signal?.throwIfAborted();
+      if(publicHost(page.url())!=='gap.com')throw new WorkerError('capture_blocked','Gap contact page left the approved merchant');
+      const close=page.locator('#onetrust-banner-sdk .onetrust-close-btn-handler');
+      if(await close.count()===1&&await close.isVisible()) {
+        try{await close.click({timeout:3000,noWaitAfter:true});record.actions.push({action:'dismiss-cookie-notice',at:new Date().toISOString()});break;}
+        catch(error){if(error?.name!=='TimeoutError')throw error;}
+      }
+      if(attempt<7)await sleep(1000);
+    }
+    return record;
+  }
+  if (['melin.com','chubbiesshorts.com'].includes(record.hostname)) {
+    const controls=record.hostname==='melin.com'
+      ? [['button[aria-label="close-popup"]:visible','dismiss-promotion']]
+      : [['button[data-tid="banner-decline"]:visible','decline-cookies'],['button[aria-label="Close popup"]:visible','dismiss-promotion'],['button[aria-label="Close Cart Button"]:visible','close-cart-panel']];
+    for(let attempt=0;attempt<4;attempt++) {
+      signal?.throwIfAborted();
+      if(publicHost(page.url())!==record.hostname)throw new WorkerError('capture_blocked','Storefront changed during setup');
+      for(const [selector,action] of controls) {
+        const control=page.locator(selector);
+        if(await control.count()===1&&await control.isVisible()) {
+          try {await control.click({timeout:3000});record.actions.push({action,selector,at:new Date().toISOString()});}
+          catch(error){if(error?.name!=='TimeoutError')throw error;}
+        }
+      }
+      if(attempt<3)await sleep(1000);
+    }
+    return record;
+  }
   if (record.hostname !== 'sunandski.com') return record;
   for (let attempt = 0; attempt < 12; attempt++) {
     signal?.throwIfAborted();

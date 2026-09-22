@@ -1,3 +1,4 @@
+import { prepareStorefront } from './storefront-setup.mjs';
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { assertPolicyJob, EVIDENCE_SCHEMA, EXECUTION_PROFILE, QUESTION_MANIFEST, merchantId } from './policy-contract.mjs';
@@ -20,6 +21,7 @@ export async function capturePolicies(browser,store,signal) {
   const sources=[];
   try{
     await page.goto(store.website,{waitUntil:'domcontentloaded',timeout:45000});
+    if(publicHost(store.website)==='gap.com')await prepareStorefront(page,{signal});
     const links=await page.locator('a[href]').evaluateAll(xs=>xs.map(a=>({url:a.href,text:a.innerText})));
     const urls=[...new Set(links.filter(a=>/return|refund|shipping|delivery|warranty|damag|contact|faq|help|support|cancel|order/i.test(a.text+' '+a.url)).map(a=>a.url))].filter(url=>{try{return (publicHost(url)===publicHost(store.website)||publicHost(url).endsWith('.'+publicHost(store.website)));}catch{return false;}}).slice(0,8);
     for(const url of urls){signal?.throwIfAborted();try{

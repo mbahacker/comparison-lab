@@ -110,6 +110,7 @@ npm run admin -- list
 npm run admin -- outbox
 npm run admin -- reissue-review REQUEST_ID
 npm run admin -- retry REQUEST_ID
+npm run admin -- correct-roster REQUEST_ID
 ```
 
 Use the container equivalents in the deployment guide. Retry only after investigating the failed capture or configuration. A stale worker lease cannot publish. Mail delivery failure does not rerun an evaluation or unpublish a report.

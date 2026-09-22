@@ -17,5 +17,32 @@
     "composer": "textarea[aria-label=\"Add new message\"]",
     "transcript": "[aria-label=\"Chat messages\"]",
     "assistantMessages": "li.role-assistant"
+  },
+  {
+    "id": "sierra-melin-contact-v1",
+    "hostname": "melin.com",
+    "vendor": "Sierra",
+    "launcher": "[data-sierra-chat='modal']:visible",
+    "composer": "textarea[aria-label=\"Add new message\"]",
+    "transcript": "[aria-label=\"Chat messages\"]",
+    "assistantMessages": "li.role-assistant"
+  },
+  {
+    "id": "sierra-chubbies-footer-v1",
+    "hostname": "www.chubbiesshorts.com",
+    "vendor": "Sierra",
+    "launcher": "button:has-text(\"Live Chat\"):visible",
+    "composer": "textarea[aria-label=\"Add new message\"]",
+    "transcript": "[aria-label=\"Chat messages\"]",
+    "assistantMessages": "li.role-assistant"
+  },
+  {
+    "id": "sierra-gap-contact-v1",
+    "hostname": "www.gap.com",
+    "vendor": "Sierra",
+    "launcher": "button[part=\"launcher\"]",
+    "composer": "textarea[aria-label=\"Add new message\"]",
+    "transcript": "[aria-label=\"Chat messages\"]",
+    "assistantMessages": "li.role-assistant"
   }
 ]

@@ -31,3 +31,23 @@ test('late newsletter overlay is dismissed before retrying consent without force
   const f=fixture({interceptOnce:true});const result=await prepareStorefront(f.page,{sleep:async()=>{}});
   assert.deepEqual(f.actions,['dismiss','newsletter-dismiss','accept']);assert.equal(result.actions.at(-1).action,'accept-cookies');
 });
+
+test('reviewed retail setup closes only known benign overlays without accepting marketing',async()=>{
+ for(const host of ['melin.com','www.chubbiesshorts.com']) {
+  const clicked=[],seen=new Set();
+  const page={url:()=>`https://${host}/`,locator:selector=>({count:async()=>seen.has(selector)?0:1,isVisible:async()=>true,click:async()=>{seen.add(selector);clicked.push(selector);}})};
+  const record=await prepareStorefront(page,{sleep:async()=>{}});
+  assert.ok(record.actions.length>0);assert.ok(!record.actions.some(a=>a.action==='accept-cookies'));
+  assert.ok(clicked.every(s=>/close-popup|Close popup|Close Cart Button|banner-decline/.test(s)));
+ }
+});
+
+test('Gap uses its verified same-merchant contact entry without cookie acceptance',async()=>{
+ let url='https://www.gap.com/';const visits=[];
+ const page={url:()=>url,goto:async next=>{visits.push(next);url=next;},locator:()=>({count:async()=>0})};
+ const record=await prepareStorefront(page,{sleep:async()=>{}});
+ assert.deepEqual(visits,['https://www.gap.com/customer-service/contact-us?cid=81270']);
+ assert.equal(record.actions[0].action,'open-published-chat-entry');
+ const foreign={...page,url:()=>url,goto:async()=>{url='https://elsewhere.example/';}};url='https://www.gap.com/';
+ await assert.rejects(()=>prepareStorefront(foreign),/left the approved merchant/);
+});
