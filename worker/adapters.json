@@ -13,7 +13,7 @@
     "id": "sierra-sunandski-consent-v1",
     "hostname": "www.sunandski.com",
     "vendor": "Sierra",
-    "launcher": "a[onclick=\"event.preventDefault(); sierra.openChatModal();\"]",
+    "launcher": "button[part=\"launcher\"]",
     "composer": "textarea[aria-label=\"Add new message\"]",
     "transcript": "[aria-label=\"Chat messages\"]",
     "assistantMessages": "li.role-assistant"

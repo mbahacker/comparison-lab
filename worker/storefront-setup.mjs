@@ -11,13 +11,16 @@ export async function prepareStorefront(page, { signal, sleep = pause } = {}) {
   for (let attempt = 0; attempt < 12; attempt++) {
     signal?.throwIfAborted();
     if (publicHost(page.url()) !== record.hostname) throw new WorkerError('capture_blocked', 'Storefront changed during consent setup');
-    const close = page.locator('.s_popup_close[aria-label="Close"]');
+    try {
+    for (const selector of ['#ltkpopup-container button.ltkpopup-close[aria-labelledby="ltkpopup-close-title"]', '.s_popup_close[aria-label="Close"]']) {
+    const close = page.locator(selector);
     for (let i = 0, n = Math.min(await close.count(), 3); i < n; i++) {
       const item = close.nth(i);
       if (await item.isVisible()) {
         await item.click({ timeout: 3000 });
-        record.actions.push({ action: 'dismiss-promotion', selector: '.s_popup_close[aria-label="Close"]', at: new Date().toISOString() });
+        record.actions.push({ action: 'dismiss-promotion', selector, at: new Date().toISOString() });
       }
+    }
     }
     const consent = page.locator('#website_cookies_bar #cookies-consent-all');
     const count = await consent.count();
@@ -27,6 +30,11 @@ export async function prepareStorefront(page, { signal, sleep = pause } = {}) {
       await consent.click({ timeout: 5000 });
       record.actions.push({ action: 'accept-cookies', choice: 'all', label: 'I agree', selector: '#website_cookies_bar #cookies-consent-all', at: new Date().toISOString() });
       return record;
+    }
+    } catch (error) {
+      // A second promotion can appear between discovery and the click. Retry
+      // normal dismissal; never force a click through an overlay.
+      if (error?.name !== 'TimeoutError') throw error;
     }
     await sleep(1000);
   }

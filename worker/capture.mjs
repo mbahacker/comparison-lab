@@ -58,6 +58,7 @@ async function openChat(page, adapter) {
   if (adapter?.composer) {
     if (adapter.launcher) {
       const launch = page.locator(adapter.launcher);
+      await launch.first().waitFor({ state: 'visible', timeout: 20000 });
       if (await launch.count() !== 1 || !await launch.isVisible()) throw new WorkerError('needs_adapter', 'Configured launcher is not uniquely visible');
       const text = await launch.evaluate(el => `${el.textContent} ${el.getAttribute('aria-label') || ''}`);
       if (/checkout|purchase|place order|subscribe|refund|cancel order/i.test(text)) throw new WorkerError('capture_blocked', 'Unsafe launcher');
