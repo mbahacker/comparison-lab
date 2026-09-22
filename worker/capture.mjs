@@ -118,7 +118,7 @@ async function readSurface(surface, adapter, question = null) {
   }
   return surface.input.evaluate(readSurfaceDOM, options);
 }
-function readSurfaceDOM(el, { isFrame, directRoot, question, assistantSelector, authorMarkers }) {
+export function readSurfaceDOM(el, { isFrame, directRoot, question, assistantSelector, authorMarkers }) {
     let root;
     if (directRoot) root = el;
     else if (isFrame) root = el.ownerDocument.body;

@@ -19,13 +19,13 @@
     "assistantMessages": "li.role-assistant"
   },
   {
-    "id": "sierra-melin-contact-v1",
+    "id": "sierra-melin-product-cards-v2",
     "hostname": "melin.com",
     "vendor": "Sierra",
     "launcher": "[data-sierra-chat='modal']:visible",
     "composer": "textarea[aria-label=\"Add new message\"]",
     "transcript": "[aria-label=\"Chat messages\"]",
-    "assistantMessages": "li.role-assistant"
+    "assistantMessages": "li.role-assistant, li.role-assistant + li[class=\"empty:hidden\"]:has(button[type=\"button\"] img[src^=\"https://cdn.shopify.com/\"])"
   },
   {
     "id": "sierra-chubbies-footer-v1",

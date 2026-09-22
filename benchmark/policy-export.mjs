@@ -32,7 +32,7 @@ const publicProvenance = input => input?.kind === 'automated-policy-v1' ? { kind
   ...(Object.hasOwn(input || {}, 'schedulingAmendmentSha256') ? [['schedulingAmendmentSha256', hash(input.schedulingAmendmentSha256)]] : []),
 ]);
 
-export function projectPolicyStudy({ records, expectedContexts, providers, sources, guardrails, repairSelections = null,
+export function projectPolicyStudy({ records, expectedContexts, providers, sources, guardrails, repairSelections = /** @type {{selectionRule:string,candidates:any[]}|null} */ (null),
   slug, title, description, preparedAt, methodSha256, sourceCommit, provenance, limitations = [], auditLimitations = [] }) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug || '')) throw Error('Invalid study slug');
   if (!/^[a-f0-9]{40}$/.test(sourceCommit || '')) throw Error('Pinned original source commit required');
@@ -71,7 +71,7 @@ export function projectPolicyStudy({ records, expectedContexts, providers, sourc
   if (!repaired.length && repairSelections?.candidates?.length) throw Error('Unexpected repair selection evidence');
   const publicRepairs = repairSelections ? {
     selectionRule: repairSelections.selectionRule,
-    sourceClassificationNote: 'The original detector classification shown here is the observation being corrected, not confirmation that a human replied. These original excerpts explain selection and do not enter the revised scores.',
+    sourceClassificationNote: 'The original capture boundary or detector classification shown here explains the correction; it is not confirmation of a human reply or authorship of text outside the attributed reply. These original excerpts do not enter the revised scores.',
     candidates: repairSelections.candidates.map(c => {
       const r = repaired.find(r => r.id === c.id);
       if (!r || selectedIds.has(c.id) || ['provider','store','mode','theme'].some(k => c[k] !== r[k])) throw Error('Repair selection identity mismatch');
@@ -80,8 +80,11 @@ export function projectPolicyStudy({ records, expectedContexts, providers, sourc
       if (typeof c.reason !== 'string' || !c.reason.trim()) throw Error('Repair selection reason required');
       const t = c.originalFlaggedStop;
       if (t !== null && (!t || !Number.isInteger(t.turn) || t.turn < 1 || t.turn > 10 || typeof t.question !== 'string' || t.question !== r.checkpoints.find(x => x.turn === t.turn)?.question || typeof t.reply !== 'string' || typeof t.sourceActorLabel !== 'string' || (t.handoverHit !== null && typeof t.handoverHit !== 'string'))) throw Error('Invalid original repair-stop evidence');
+      const operatorCorrection=c.originalSubmittedTurns!==undefined||c.receiptSha256!==undefined;
+      if(operatorCorrection&&(c.originalSubmittedTurns!==1||!hash(c.receiptSha256)))throw Error('Invalid corrective attempt accounting');
       return { id: c.id, provider: c.provider, store: c.store, mode: c.mode, theme: c.theme, reason: c.reason,
         originalRawSha256: c.originalRawSha256, newRawSha256: c.newRawSha256, originalCapturedAt: iso(c.originalCapturedAt),
+        ...(operatorCorrection?{originalSubmittedTurns:c.originalSubmittedTurns,receiptSha256:c.receiptSha256}:{}),
         originalFlaggedStop: t && { turn: t.turn, question: t.question, reply: t.reply, sourceActorLabel: t.sourceActorLabel, handoverHit: t.handoverHit } };
     }),
   } : null;
@@ -139,6 +142,7 @@ export function projectPolicyStudy({ records, expectedContexts, providers, sourc
       'The sessions were logged out. No real order, refund, account change or completed human resolution was independently verified.',
       'Unknown delivery or actor attribution remains unassessable. Unsent questions are not successes or failures. Conditional scores must be read with planned and assessed coverage.',
       ...limitations,
+      ...(publicRepairs?.candidates.some(c=>c.originalSubmittedTurns!==undefined)?[`${publicRepairs.candidates.reduce((n,c)=>n+(c.originalSubmittedTurns||0),0)} earlier submission attempt(s) preceded operator-corrected captures. They are retained in the repair provenance and excluded from the selected-capture scoring denominators.`]:[]),
     ],
     audit: { description: 'Every assessed policy-resolution checkpoint receives a primary and a fresh blind audit. Both must award valid evidence-backed attainment. Attainment disagreements receive zero verified credit and remain visible.',
       limitations: ['Provider names were masked where practicable; full anonymity is not claimed.', automatic ? 'Each new quality judgment has a separate adversarial audit. The quality audit sees the primary verdict; the policy-resolution audit does not.' : 'Retained original quality judgments have separate historical audit coverage. The repair-quality audit sees the primary quality verdicts and full captured replies; it is distinct from the blind policy-resolution audit.', ...auditLimitations] },

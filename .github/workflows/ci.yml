@@ -22,6 +22,8 @@ jobs:
           NEXT_TELEMETRY_DISABLED: '1'
       - run: docker build -t comparison-lab-web .
       - run: docker build -f worker/Dockerfile -t comparison-lab-worker .
+      - name: Validate reviewed product-card extraction offline
+        run: docker run --rm --network none --entrypoint node -v "$PWD/tests/browser:/app/tests/browser:ro" comparison-lab-worker /app/tests/browser/melin-cards.mjs
       - run: docker build -f judge/Dockerfile -t comparison-lab-judge .
       - name: Validate production Compose and HTTPS configuration
         env:

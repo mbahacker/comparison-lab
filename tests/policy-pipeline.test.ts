@@ -7,9 +7,10 @@ import path from 'node:path';
 import {randomUUID} from 'node:crypto';
 import {db,closeDb} from '../lib/server/db.ts';
 import {hash} from '../lib/server/security.ts';
-import {policyProtocol,completePolicyJob,planPolicyReuse} from '../lib/server/policy-automation.ts';
+import type {Row} from '../lib/server/model.ts';
+import {policyProtocol,completePolicyJob,planPolicyReuse,mergeComparisonRepairs} from '../lib/server/policy-automation.ts';
 import {getResearchLibrary} from '../lib/server/research-library.ts';
-import {listPolicyStudies} from '../lib/server/policy-studies.ts';
+import {listPolicyStudies,policyStudyArtifact} from '../lib/server/policy-studies.ts';
 import {handlePolicyStudy} from '../lib/server/policy-study-api.ts';
 import {handleApi} from '../lib/server/api.ts';
 import {toolId} from '../lib/server/reuse.ts';
@@ -40,6 +41,37 @@ function fixture(name='Fixture A') {
   return {provider,snapshot,evidence:{schema:EVIDENCE_SCHEMA,protocol:'policy-resolution-v1',protocolSnapshotSha256:snapshot.sha256,executionProfile:EXECUTION_PROFILE,questionManifest:QUESTION_MANIFEST,providers:[provider],captures,sources,judgments}};
 }
 function options(f:any){return{providers:[f.provider],protocolSnapshotSha256:f.snapshot.sha256,approvedAt,upstream};}
+function correctionFixture(name='Corrective fixture') {
+  const f=fixture(name),c=f.evidence.captures[0],expected=makePolicyPlan([f.provider]).find(p=>p.id===c.id)!;
+  const binding=digest({provider:f.provider,store:f.provider.customers[0],scenario:expected}),at=Date.parse(c.captured_at);
+  const original=structuredClone(c);delete original.source_capture_sha256;
+  original.captured_at=new Date(at-20000).toISOString();original.privateSourceMarker='PRIVATE ORIGINAL RECEIPT BODY';
+  original.turns=[{...original.turns[0],unsent:false,submission_confirmed:true,response_complete:false,complete_ms:null,completed_at:null,observed_reply_ambiguous:false,observed_reply_text:original.turns[0].reply+'\nUnattributed product cards.'}];
+  original.stop_reason={code:'needs_adapter',message:'Visible reply contains text outside positively attributed AI messages'};
+  const receipt:Row={schema:'policy-corrective-capture-receipt/v1',captureId:c.id,contextSha256:binding,protocolSnapshotSha256:f.snapshot.sha256,reason:'Observed product-card extraction boundary; one original attempted send retained.',authorizedAt:new Date(at-1000).toISOString(),collectorRevision:'a'.repeat(40),adapterSha256:'b'.repeat(64),
+    originalRaw:JSON.stringify(original,null,2),originalIntent:JSON.stringify({id:c.id,contextSha256:binding,fencingToken:6,startedAt:new Date(at-21000).toISOString()}),originalJournal:JSON.stringify({version:1,captureId:c.id,phase:'submission_attempted',submissionAttempts:1,turn:1,updatedAt:new Date(at-15000).toISOString()})};
+  for(const key of ['originalRaw','originalIntent','originalJournal'])receipt[key+'Sha256']=hash(receipt[key]);
+  c.capture_metadata.corrective_capture={version:'operator-corrective-capture-v1',originalRawSha256:receipt.originalRawSha256,originalCapturedAt:original.captured_at,originalSubmittedTurns:1,reason:receipt.reason,receiptSha256:digest(receipt),receipt};
+  const rebind=()=>{c.capture_metadata.corrective_capture.receiptSha256=digest(receipt);delete c.source_capture_sha256;c.source_capture_sha256=hash(JSON.stringify(c));f.evidence.judgments[0].rawSha256=c.source_capture_sha256;};
+  rebind();return{f,c,receipt,rebind};
+}
+test('corrective capture validates exact prior attempt and projects fresh selected evidence without private receipt bodies',()=>{
+  const {f,c}=correctionFixture(),before=hash(JSON.stringify(f.evidence));
+  const validated=validateAutomatedEvidence(f.evidence,options(f)),record=validated.records[0];
+  assert.equal(record.correctedCapture,true);assert.equal(record.originalRawSha256,c.capture_metadata.corrective_capture.originalRawSha256);
+  assert.equal(record.qualityEvidence!.provenance,'fresh-repair-quality');assert.equal(validated.repairSelections!.candidates[0].originalSubmittedTurns,1);
+  assert.match(record.limitations![0],/completion latency were not inferred/);
+  assert.equal(JSON.stringify(validated).includes('PRIVATE ORIGINAL RECEIPT BODY'),false);
+  assert.equal(hash(JSON.stringify(f.evidence)),before,'validation must not rewrite either capture or judgment');
+  for(const mutate of [
+    (r:Row)=>{r.originalRaw+=' ';},
+    (r:Row)=>{r.protocolSnapshotSha256='0'.repeat(64);},
+    (r:Row)=>{r.contextSha256='0'.repeat(64);},
+    (r:Row)=>{const j=JSON.parse(r.originalJournal);j.submissionAttempts=2;r.originalJournal=JSON.stringify(j);r.originalJournalSha256=hash(r.originalJournal);},
+    (r:Row)=>{const o=JSON.parse(r.originalRaw);o.turns[0].submission_confirmed=false;r.originalRaw=JSON.stringify(o);r.originalRawSha256=hash(r.originalRaw);},
+    (r:Row)=>{r.authorizedAt=new Date(Date.now()+60000).toISOString();},
+  ]){const x=correctionFixture();mutate(x.receipt);x.c.capture_metadata.corrective_capture.originalRawSha256=x.receipt.originalRawSha256;x.rebind();assert.throws(()=>validateAutomatedEvidence(x.f.evidence,options(x.f)),/corrective capture/);}
+});
 test('whole-cohort validation binds questions, attribution, provenance and independent blind calls',()=>{
   const f=fixture();assert.equal(validateAutomatedEvidence(f.evidence,options(f)).records.length,50);
   const foreign=structuredClone(f.evidence);foreign.providers[0].name='Injected name';assert.throws(()=>validateAutomatedEvidence(foreign,options(f)),/Provider metadata/);
@@ -123,4 +155,22 @@ test('publication rollback after immutable writes can retry exact evidence witho
   assert.equal(replay.status,200);
   assert.equal((await replay.json()).report.slug,pending.slug);
   assert.deepEqual({releases:count('policy_releases'),outbox:count('outbox')},after);
+});
+
+test('publication and derived comparisons preserve corrective lineage from both source studies',async()=>{
+  const a=correctionFixture('Corrected A'),b=correctionFixture('Corrected B');
+  const first=await publish(a.f);await publish(b.f);
+  const direct=JSON.parse(policyStudyArtifact(first.report.slug,'evidence').bytes.toString());
+  assert.equal(direct.repairSelections.candidates.length,1);assert.equal(direct.repairSelections.candidates[0].originalSubmittedTurns,1);
+  assert.equal(JSON.stringify(direct).includes('PRIVATE ORIGINAL RECEIPT BODY'),false);
+  assert.ok(first.report.limitations.some((s:string)=>s.includes('1 earlier submission attempt')));
+  const pair=listPolicyStudies().find(s=>s.derivedFrom&&s.providers.some(p=>p.name==='Corrected A')&&s.providers.some(p=>p.name==='Corrected B'))!;
+  const paired=JSON.parse(policyStudyArtifact(pair.slug,'evidence').bytes.toString());
+  assert.deepEqual(new Set(paired.repairSelections.candidates.map((c:Row)=>c.provider)),new Set(['Corrected A','Corrected B']));
+  assert.equal(paired.conversations.filter((c:Row)=>c.correctedCapture).length,2);
+  assert.equal(JSON.stringify(paired).includes('PRIVATE ORIGINAL RECEIPT BODY'),false);
+  const one={selectionRule:'rule',candidates:[{id:'one',provider:'A'}]},two={selectionRule:'other',candidates:[{id:'two',provider:'B'},{id:'three',provider:'C'}]};
+  assert.deepEqual(mergeComparisonRepairs(one,two,'B')!.candidates.map((c:Row)=>c.id),['one','two']);
+  assert.deepEqual(mergeComparisonRepairs(one,null,'B')!.candidates,one.candidates);
+  assert.throws(()=>mergeComparisonRepairs(one,{...two,candidates:[{id:'one',provider:'B'}]},'B'),/Duplicate comparison repair/);
 });
