@@ -1,3 +1,4 @@
+import { prepareStorefront } from './storefront-setup.mjs';
 import reviewedAdapters from './adapters.json' with { type: 'json' };
 import { observedProviderUrls, publicHost } from './provider-fingerprint.mjs';
 import { chromium } from 'playwright';
@@ -175,7 +176,7 @@ export async function launchCaptureBrowser(proxyUrl) {
 }
 export async function captureConversation({ browser, provider, store, mode, jobDirectory, adapters = [], upstream, signal, scenario: planned, policyProfile = false }) {
   const url = validatePublicUrl(store.website); await resolvePublic(url.hostname);
-  const adapter = [...adapters, ...reviewedAdapters].find(a => (a.hostname === url.hostname && (!a.vendor || a.vendor.toLowerCase() === provider.name.toLowerCase())) || (!a.hostname && a.providerDomain === publicHost(provider.website)));
+  const adapter = [...adapters, ...reviewedAdapters].find(a => (a.hostname && publicHost('https://' + a.hostname) === publicHost(url.href) && (!a.vendor || a.vendor.toLowerCase() === provider.name.toLowerCase())) || (!a.hostname && a.providerDomain === publicHost(provider.website)));
   const context = await browser.newContext({ locale: 'en-US', timezoneId: 'UTC', viewport: { width: 1440, height: 1000 }, serviceWorkers: 'block', acceptDownloads: false });
   await context.route('**/*', route => {
     try { validatePublicUrl(route.request().url()); return route.continue(); } catch { return route.abort('blockedbyclient'); }
@@ -190,6 +191,7 @@ export async function captureConversation({ browser, provider, store, mode, jobD
   try {
     await page.goto(url.href, { waitUntil: 'domcontentloaded', timeout: 45000 });
     await delay(4000);
+    capture.capture_metadata.storefront_setup = await prepareStorefront(page, {signal});
     const surface = await openChat(page, adapter);
     capture.capture_metadata.provider_attribution = await attribution(page, provider, surface);
     if (policyProfile && !capture.capture_metadata.provider_attribution.verified) throw new WorkerError('provider_unverified', 'Policy studies require observed provider attribution');

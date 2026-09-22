@@ -8,5 +8,14 @@
     "assistantMessages": "li.role-assistant",
     "hostname": "olukai.com",
     "vendor": "Sierra"
+  },
+  {
+    "id": "sierra-sunandski-consent-v1",
+    "hostname": "www.sunandski.com",
+    "vendor": "Sierra",
+    "launcher": "a[onclick=\"event.preventDefault(); sierra.openChatModal();\"]",
+    "composer": "textarea[aria-label=\"Add new message\"]",
+    "transcript": "[aria-label=\"Chat messages\"]",
+    "assistantMessages": "li.role-assistant"
   }
 ]

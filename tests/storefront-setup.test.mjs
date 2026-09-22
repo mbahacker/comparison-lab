@@ -1,0 +1,27 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {prepareStorefront} from '../worker/storefront-setup.mjs';
+function fixture({host='www.sunandski.com',count=1,label='I agree',late=0}={}) {
+  const actions=[];let dismissed=false,accepted=false,polls=0;
+  const page={url:()=>`https://${host}/`,locator:selector=>{
+    if(selector==='.s_popup_close[aria-label="Close"]')return {count:async()=>1,nth:()=>({isVisible:async()=>!dismissed,click:async()=>{dismissed=true;actions.push('dismiss');}})};
+    assert.equal(selector,'#website_cookies_bar #cookies-consent-all');
+    return {count:async()=>++polls>late?count:0,isVisible:async()=>!accepted,innerText:async()=>label,click:async()=>{assert.ok(dismissed);accepted=true;actions.push('accept');}};
+  }};
+  return {page,actions};
+}
+test('reviewed consent dismisses blocking promotion and records acceptance after banner appears',async()=>{
+  const f=fixture({late:2});const result=await prepareStorefront(f.page,{sleep:async()=>{}});
+  assert.deepEqual(f.actions,['dismiss','accept']);assert.equal(result.hostname,'sunandski.com');
+  assert.equal(result.actions[1].action,'accept-cookies');assert.equal(result.actions[1].choice,'all');
+});
+test('lookalike or unrelated hosts do not receive cookie acceptance',async()=>{
+  for(const host of ['sunandski.com.example','other.example']){const f=fixture({host});assert.equal((await prepareStorefront(f.page)).actions.length,0);assert.deepEqual(f.actions,[]);}
+});
+test('ambiguous or changed consent controls stop without accepting',async()=>{
+  for(const config of [{count:2},{label:'Subscribe'}]){const f=fixture(config);await assert.rejects(()=>prepareStorefront(f.page),/ambiguous|label changed/);assert.deepEqual(f.actions,['dismiss']);}
+});
+test('missing banner is bounded and abort is respected',async()=>{
+  const f=fixture({count:0});let polls=0;await prepareStorefront(f.page,{sleep:async()=>{polls++;}});assert.equal(polls,12);assert.deepEqual(f.actions,['dismiss']);
+  const control=new AbortController();control.abort(Error('Stopped'));await assert.rejects(()=>prepareStorefront(f.page,{signal:control.signal}),/Stopped/);
+});

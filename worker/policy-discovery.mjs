@@ -1,4 +1,5 @@
 import fs from 'node:fs/promises';
+import { prepareStorefront } from './storefront-setup.mjs';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { startPublicProxy, validatePublicUrl, resolvePublic } from './network.mjs';
@@ -10,7 +11,7 @@ const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
 const casePage = url => /\/(?:customers?|case-stud(?:y|ies)|stories|success-stories)(?:\/|$)/i.test(new URL(url).pathname);
 const excluded = /(?:facebook|instagram|youtube|linkedin|twitter|tiktok|vimeo|wikipedia|google|apple|microsoft|x)\.com$/i;
 
-// Read-only pages and loaded provider scripts. No chat questions, email entry or form submissions.
+// Page inspection with reviewed cookie setup. No chat questions, email entry or purchases.
 export async function discoverStorefronts(provider, { browser, signal, directory, maxPages = 60 } = {}) {
   if (provider.customers?.length !== 3) throw new WorkerError('research_incomplete', 'Preparation requires three submitted storefronts');
   const context = await browser.newContext({ serviceWorkers: 'block', acceptDownloads: false, locale: 'en-US' });
@@ -22,6 +23,7 @@ export async function discoverStorefronts(provider, { browser, signal, directory
     if (++readCount > maxPages) throw new WorkerError('research_incomplete', 'Bounded research did not verify five storefronts');
     validatePublicUrl(url); await resolvePublic(new URL(url).hostname);
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 45000 }); await delay(4000);
+    const setup = deployment ? await prepareStorefront(page, {signal}) : null;
     const finalUrl = page.url(); validatePublicUrl(finalUrl);
     const deadline = Date.now() + (deployment ? 20000 : 0);
     let result, observed;
@@ -34,7 +36,7 @@ export async function discoverStorefronts(provider, { browser, signal, directory
       if (observed.length || Date.now() >= deadline) break;
       await delay(1000);
     } while (true);
-    const record = { ...result, finalUrl, retrievedAt: new Date().toISOString(), sourceSha256: sha(result.text), observedProviderUrls: observed };
+    const record = { ...result, setup, finalUrl, retrievedAt: new Date().toISOString(), sourceSha256: sha(result.text), observedProviderUrls: observed };
     await fs.writeFile(path.join(directory, `page-${sha(provider.website).slice(0,12)}-${readCount}.json`), JSON.stringify(record), {mode:0o600});
     return record;
   }
@@ -45,7 +47,7 @@ export async function discoverStorefronts(provider, { browser, signal, directory
       if (!sameHost(observed.finalUrl, store.website) || !observed.observedProviderUrls.length) throw new WorkerError('research_unverified', `Submitted storefront deployment could not be verified: ${publicHost(store.website)}`);
       proofs.push({ providerWebsite: provider.website, storeWebsite: store.website, sourceUrl: observed.finalUrl,
         sourceSha256: observed.sourceSha256, sourceText: observed.text, retrievedAt: observed.retrievedAt,
-        observedProviderUrls: observed.observedProviderUrls, verification: 'live-provider-fingerprint', submitted: true });
+        observedProviderUrls: observed.observedProviderUrls, setup: observed.setup, verification: 'live-provider-fingerprint', submitted: true });
     }
     const homepage = await read(provider.website);
     const queue = homepage.links.filter(l => { try { return sameHost(l.url, provider.website) && casePage(l.url); } catch { return false; } }).map(l => l.url);
@@ -70,7 +72,7 @@ export async function discoverStorefronts(provider, { browser, signal, directory
         proofs.push({ providerWebsite: provider.website, storeWebsite: store.website, sourceStoreUrl: link.url,
           sourceUrl: source.finalUrl, sourceSha256: source.sourceSha256, sourceText: source.text,
           sourceLinks: [link.url], retrievedAt: source.retrievedAt,
-          observedProviderUrls: observed.observedProviderUrls, verification: 'live-provider-fingerprint', submitted: false });
+          observedProviderUrls: observed.observedProviderUrls, setup: observed.setup, verification: 'live-provider-fingerprint', submitted: false });
         if (stores.length === 5) break;
       }
     }
