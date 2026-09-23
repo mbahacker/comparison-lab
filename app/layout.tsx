@@ -14,9 +14,9 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     siteName: "Alhena Research Lab",
-    title: "Ecommerce AI agents, tested on real storefronts",
+    title: "Ecommerce AI agents, evaluated side by side",
     description:
-      "Ecommerce AI shopping and support agents tested on live storefronts. Published resolution, answer quality and speed scores, with the evidence behind each one.",
+      "Every agent gets the same shopper conversations on live stores. See who gets customers the right answer, and the evidence behind each score.",
   },
   twitter: { card: "summary_large_image" },
   title: {
