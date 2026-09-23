@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { PolicyLaneResult, PolicyStudySummary } from '../lib/policy-study.ts';
-import { studyFindings, studyMetaDescription } from '../lib/study-findings.ts';
+import { featuredStudy, studyFindings, studyMetaDescription } from '../lib/study-findings.ts';
 
 function lane(composite: number | null, seconds: number | null, includedStores = 5): PolicyLaneResult {
   const metric = (value: number | null, explanation = 'Synthetic fixture.') => ({ value, explanation });
@@ -51,4 +51,13 @@ test('meta description leads with scores', () => {
   const text = studyMetaDescription(study([provider('Alpha', lane(68.4, 11.8), lane(81.4, 8.7), 74.9), provider('Beta', lane(55.8, 17.2), lane(75.8, 14.1), 65.8)]));
   assert.ok(text.startsWith('Alpha 68.4/81.4 vs Beta 55.8/75.8: '));
   assert.ok(text.length <= 160, `${text.length} characters`);
+});
+
+test('the featured study is the newest original study with the most providers, never a derived comparison', () => {
+  const pair = { ...study([provider('Alpha', lane(1, 9), lane(1, 9), 1), provider('Beta', lane(1, 9), lane(1, 9), 1)]), slug: 'pair', captureEndAt: '2020-01-03T00:00:00Z' };
+  const single = { ...study([provider('Gamma', lane(1, 9), lane(1, 9), 1)]), slug: 'single', captureEndAt: '2020-02-01T00:00:00Z' };
+  const derived = { ...study([provider('Alpha', lane(1, 9), lane(1, 9), 1), provider('Gamma', lane(1, 9), lane(1, 9), 1)]), slug: 'derived', captureEndAt: '2020-02-01T00:00:00Z', derivedFrom: [{ slug: 'pair', sha256: 'c'.repeat(64) }] };
+  assert.equal(featuredStudy([derived, single, pair])?.slug, 'pair');
+  assert.equal(featuredStudy([derived, single])?.slug, 'single');
+  assert.equal(featuredStudy([derived]), undefined);
 });

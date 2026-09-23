@@ -41,6 +41,24 @@ export function studyFindings(study: PolicyStudySummary): string[] {
   return findings;
 }
 
+/** Scope caveat for summaries that span several studies. */
+export const LIBRARY_SCOPE = "Scores cover the AI agent in each store's on-site chat widget on the storefronts in each tool's study, not other products the vendors sell, every deployment, or an overall vendor ranking. Alhena operates Alhena Research Lab.";
+
+/**
+ * The study to illustrate the method with: the most recent original (not derived) study with the most
+ * providers. Derived comparisons recombine earlier captures, so they never stand in for "the latest study".
+ */
+export function featuredStudy(studies: PolicyStudySummary[]): PolicyStudySummary | undefined {
+  const time = (s: string) => Date.parse(s) || 0;
+  return studies.filter(s => !s.derivedFrom && s.providers.length)
+    .sort((a, b) => b.providers.length - a.providers.length || time(b.captureEndAt) - time(a.captureEndAt) || time(b.publishedAt) - time(a.publishedAt))[0];
+}
+
+/** One sentence per tool from its latest published study, plus the scope caveat. */
+export function latestResults(tools: ResearchTool[]): string[] {
+  return tools.length ? [...tools.map(toolSummarySentence), LIBRARY_SCOPE] : [];
+}
+
 /** One-line description that leads with the scores, for meta and social previews. */
 export function studyMetaDescription(study: PolicyStudySummary) {
   const scores = study.providers.map(x => `${x.name} ${value(x.shopping.composite)}/${value(x.support.composite)}`).join(' vs ');

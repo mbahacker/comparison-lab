@@ -107,7 +107,7 @@ ${research.tools.length ? research.tools.map(t => `- [${label(t.name)}](${public
 
 ## Frequently asked questions
 
-${faqItems(research.studies[0]).map(item => `### ${item.q}\n\n${item.a}${item.href ? ` (${publicUrl(item.href)})` : ''}`).join('\n\n')}
+${faqItems(research).map(item => `### ${item.q}\n\n${item.a}${item.href ? ` (${publicUrl(item.href)})` : ''}`).join('\n\n')}
 
 ## Machine-readable data
 

@@ -1,5 +1,6 @@
 import type { PolicyStudySummary } from './policy-study.ts';
-import { studyFindings } from './study-findings.ts';
+import { latestResults } from './study-findings.ts';
+import type { ResearchTool } from './research-library.ts';
 import { exclusiveOfferings, integrationOnly, phraseList, scopesFor } from './product-scope.ts';
 
 /** Homepage FAQ, also published as FAQPage structured data and in llms-full.txt. */
@@ -16,12 +17,17 @@ const STATIC_FAQ: FaqItem[] = [
   { q: "What happened to the earlier quality scores?", a: "They remain in the historical quality pilot archive with their original scores and capture dates. The pilot used a separate scope and protocol, so its scores are not combined with the current results." },
 ];
 
-/** The first answer is composed from the latest study, so it always quotes current published scores. */
-export function faqItems(study?: PolicyStudySummary): FaqItem[] {
-  if (!study?.providers.length) return STATIC_FAQ;
-  const points = studyFindings(study).filter(f => !f.startsWith('Overall'));
-  const vendors = scopesFor(study.providers);
-  const scope: FaqItem[] = vendors ? [{
+/**
+ * The first answer quotes each tool's latest published result. The scope answer uses the most recent
+ * study whose vendors all have sourced product-scope entries, so it never compares against a blank.
+ */
+export function faqItems({ tools, studies }: { tools: ResearchTool[]; studies: PolicyStudySummary[] }): FaqItem[] {
+  const results = latestResults(tools);
+  const latest: FaqItem[] = results.length ? [{ q: 'What are the latest results?', a: results.join(' '), lead: 'Latest published result for each tool:', points: results, href: '/studies', linkText: 'Browse the studies' }] : [];
+  const time = (value: string) => Date.parse(value) || 0;
+  const scoped = [...studies].filter(st => scopesFor(st.providers)).sort((a, b) => Number(Boolean(a.derivedFrom)) - Number(Boolean(b.derivedFrom)) || time(b.captureEndAt) - time(a.captureEndAt))[0];
+  const vendors = scoped ? scopesFor(scoped.providers) : null;
+  const scope: FaqItem[] = scoped && vendors ? [{
     q: `Does this compare everything ${vendors.map(v => v.name).join(' and ')} offer?`,
     a: `No. Studies test one form factor, the AI agent in each store's on-site chat widget. ${[
       ...vendors.map(v => {
@@ -32,8 +38,7 @@ export function faqItems(study?: PolicyStudySummary): FaqItem[] {
       }),
       ...vendors.map(v => { const linked = integrationOnly(v); return linked.length ? `${v.name} connects to ${phraseList(linked)} through integrations instead.` : ''; }),
     ].filter(Boolean).join(' ')} None of these were tested. The study's product scope table lists each vendor's offerings with sources.`,
-    href: `/studies/${study.slug}#product-scope`, linkText: 'See the product scope table',
+    href: `/studies/${scoped.slug}#product-scope`, linkText: 'See the product scope table',
   }] : [];
-  return [{ q: `What did the latest study find?`, a: `${study.title}. ${points.join(' ')}`, lead: `${study.title}:`, points, href: `/studies/${study.slug}`, linkText: 'Read the study' }, ...scope, ...STATIC_FAQ];
+  return [...latest, ...scope, ...STATIC_FAQ];
 }
-

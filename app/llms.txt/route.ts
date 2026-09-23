@@ -2,25 +2,23 @@ import { getToolLibrary } from '@/lib/server/reuse';
 import { getResearchLibrary } from '@/lib/server/research-library';
 import { listReports } from '@/lib/server/evidence';
 import { publicUrl } from '@/lib/server/public-data';
-import { studyFindings } from '@/lib/study-findings';
+import { latestResults } from '@/lib/study-findings';
 import { demoUrl } from '@/components/lab/demo-link';
 export const dynamic = 'force-dynamic';
 const label = (s: string) => s.replace(/[\r\n\[\]<>]/g, ' ').trim();
 export async function GET() {
   const research = getResearchLibrary();
   const historical = getToolLibrary();
-  const latest = research.studies[0];
+  const results = latestResults(research.tools);
   const text = `# Alhena Research Lab
 
 > Published evaluations of ecommerce AI shopping and support agents on live storefronts, operated by Alhena. Every tool gets the same customer conversations; scores cover policy-compliant resolution, answer quality and full-answer speed, with conversation evidence behind each score.
 
 Everything below in one file, including every study's scores, limitations and the FAQ: ${publicUrl('/llms-full.txt')}
-${latest ? `
-## Latest findings
+${results.length ? `
+## Latest result per tool
 
-From [${label(latest.title)}](${publicUrl(`/studies/${latest.slug}`)}):
-
-${studyFindings(latest).map(f => `- ${f}`).join('\n')}
+${results.map(f => `- ${f}`).join('\n')}
 ` : ''}
 ## Current scoring: policy-resolution-v1
 

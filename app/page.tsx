@@ -1,6 +1,7 @@
 import { ReportLibrary } from '@/components/lab/report-library';
 import { HomeCallToAction, HomeFaq, HomeHero, HomeMeasures, HomeProcess } from '@/components/lab/home-sections';
 import { faqItems } from '@/lib/faq';
+import { featuredStudy } from '@/lib/study-findings';
 import { getToolLibrary } from '@/lib/server/reuse';
 import { getResearchLibrary } from '@/lib/server/research-library';
 import { listReports } from '@/lib/server/evidence';
@@ -10,7 +11,7 @@ export const metadata = { alternates: { canonical: '/', types: { 'application/js
 export default function Home() {
   const historical = getToolLibrary();
   const research = getResearchLibrary();
-  const faq = faqItems(research.studies[0]);
+  const faq = faqItems(research);
   const catalog = {
     '@type': 'DataCatalog', '@id': publicUrl('/#catalog'),
     name: 'Alhena Research Lab current tool evaluations', url: publicUrl('/'),
@@ -27,7 +28,7 @@ export default function Home() {
     <main id="main" className="home">
       <HomeHero tools={research.tools} studies={research.studies} />
       <HomeMeasures />
-      <HomeProcess study={research.studies[0]} />
+      <HomeProcess study={featuredStudy(research.studies)} />
       <ReportLibrary tools={historical.tools as ToolSummary[]} reports={listReports() as ReportSummary[]} studies={research.studies} latestTools={research.tools} />
       <HomeCallToAction />
       <HomeFaq items={faq} />

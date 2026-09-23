@@ -98,7 +98,7 @@ export function HomeProcess({ study }: { study?: PolicyStudySummary }) {
     <div className="shell process-grid">
       <div className="section-intro process-intro">
         <h2 id="process-title">How an evaluation works</h2>
-        <p>The same four steps for every tool.{study && " The figures come from the latest study."}</p>
+        <p>The same four steps for every tool.{study && <> The figures come from <Link href={`/studies/${study.slug}`}>{study.title}</Link>.</>}</p>
         <Link className="text-arrow" href="/methodology">Read the full methodology <ArrowRight size={16} aria-hidden="true" /></Link>
       </div>
       <ol className="process-steps">
@@ -122,7 +122,7 @@ export function HomeProcess({ study }: { study?: PolicyStudySummary }) {
         <li>
           <h3>Publish the evidence</h3>
           <p>Scores, capture dates, coverage and limits are public. The conversations behind them open with a verified work email.</p>
-          {study && <p className="step-proof">Latest study published <strong>{date(study.publishedAt)}</strong></p>}
+          {study && <p className="step-proof">Published <strong>{date(study.publishedAt)}</strong></p>}
         </li>
       </ol>
     </div>
