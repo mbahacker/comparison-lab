@@ -5,7 +5,7 @@ import { ToolSummary, ReportSummary, score, date } from '@/lib/client';
 import { captureDates, ComparisonCard, Freshness } from './report-library';
 import type { ResearchTool } from '@/lib/research-library';
 import { POLICY_LABEL, type PolicyStudySummary, type StudyMetric } from '@/lib/policy-study';
-import { toolSummarySentence } from '@/lib/study-findings';
+import { studyHeadline, toolSummarySentence } from '@/lib/study-findings';
 import { BeyondChatWidget } from './product-scope';
 
 function ResearchMetric({label,metric}:{label:string;metric:StudyMetric}) {
@@ -21,7 +21,7 @@ export function ToolProfile({research,pilot,study,comparisons}:{research?:Resear
    <p className="tool-capture-note">Captures <strong>{date(research.captureStartAt)} to {date(research.captureEndAt)}</strong>. Published {date(research.publishedAt)}. {research.registeredStores} registered storefronts. Selected by capture end date, then publication date.</p>
    <div className="caveat"><strong>Public-session scope</strong><p>Policy-compliant resolution includes a verified policy-required next step. These scores do not prove completed refunds, account actions or human-resolved orders. Coverage differs by lane and provider; this is an Alhena-commissioned study, not independent certification or a universal vendor ranking.</p></div>
    <div className="hero-actions"><Link className="button primary" href={`/studies/${research.studySlug}`}>Read the study and evidence <ArrowRight size={17}/></Link><Link className="button outline-button" href="/studies/policy-resolution-v1">Read the methodology</Link></div>
-   <p className="private-note">Source: <Link href={`/studies/${research.studySlug}`}>{research.studyTitle}</Link>. Summaries are public; detailed evidence requires a verified work email.</p>
+   <p className="private-note">Source: <Link href={`/studies/${research.studySlug}`}>{study ? studyHeadline(study) : research.studyTitle}</Link>. Summaries are public; detailed evidence requires a verified work email.</p>
    <BeyondChatWidget name={research.name} website={research.website} />
    {(['shopping','support'] as const).map(mode=><section className="library-section" key={mode}><h2>{mode === 'shopping' ? 'Shopping' : 'Support'}</h2><div className="summary-score-grid"><article className="summary-score-card"><ResearchMetric label="Composite" metric={research[mode].composite}/></article><article className="summary-score-card"><ResearchMetric label={POLICY_LABEL} metric={research[mode].policyResolution}/></article><article className="summary-score-card"><ResearchMetric label="Answer quality" metric={research[mode].quality}/></article><article className="summary-score-card"><ResearchMetric label="Full-answer speed score" metric={research[mode].speed}/></article></div></section>)}
    <section className="library-section"><h2>Overall composite</h2><ResearchMetric label="Overall composite" metric={research.overallComposite}/></section>

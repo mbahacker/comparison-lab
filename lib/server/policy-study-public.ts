@@ -1,7 +1,7 @@
 import type { PolicyStudySummary } from '../policy-study.ts';
 import { POLICY_LABEL } from '../policy-study.ts';
 import { breadcrumbData, publicUrl, publisher } from './public-data.ts';
-import { studyFindings } from '../study-findings.ts';
+import { studyFindings, studyHeadline, studyShortName } from '../study-findings.ts';
 import { fullAnswerSeconds } from '../score-parts.ts';
 import { CAPABILITIES, vendorScope } from '../product-scope.ts';
 
@@ -19,7 +19,7 @@ export function policyStudyStructuredData(study: PolicyStudySummary) {
   ]);
   return {
     '@context': 'https://schema.org', '@graph': [{
-      '@type': ['Report', 'Dataset'], '@id': `${url}#study`, name: study.title, headline: study.title,
+      '@type': ['Report', 'Dataset'], '@id': `${url}#study`, name: studyHeadline(study), headline: studyHeadline(study), alternateName: study.title,
       description: study.description, abstract: studyFindings(study).join(' '), url, mainEntityOfPage: url,
       datePublished: study.publishedAt, dateModified: study.publishedAt, temporalCoverage: `${study.captureStartAt}/${study.captureEndAt}`,
       publisher: publisher(), author: publisher(), creator: publisher(), inLanguage: 'en',
@@ -32,7 +32,7 @@ export function policyStudyStructuredData(study: PolicyStudySummary) {
       distribution: { '@type': 'DataDownload', contentUrl: publicUrl('/study-scores.json'), encodingFormat: 'application/json', name: 'Public study summaries' },
       isAccessibleForFree: false,
       hasPart: { '@type': 'WebPageElement', isAccessibleForFree: false, cssSelector: '.study-protected-evidence' },
-    }, breadcrumbData([{ name: 'Alhena Research Lab', path: '/' }, { name: 'Studies', path: '/studies' }, { name: study.title, path: `/studies/${study.slug}` }])],
+    }, breadcrumbData([{ name: 'Alhena Research Lab', path: '/' }, { name: 'Studies', path: '/studies' }, { name: studyShortName(study), path: `/studies/${study.slug}` }])],
   };
 }
 export function publicPolicyStudyData(studies: PolicyStudySummary[]) {

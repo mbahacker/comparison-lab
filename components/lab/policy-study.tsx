@@ -7,7 +7,7 @@ import { PartsLegend, ScoreRow } from './score-bars';
 import { DemoLink } from './demo-link';
 import { ProductScope } from './product-scope';
 import { fullAnswerSeconds } from '@/lib/score-parts';
-import { studyFindings } from '@/lib/study-findings';
+import { studyFindings, studyHeadline, studyLede } from '@/lib/study-findings';
 import { api, captureRange, date, score } from '@/lib/client';
 import { POLICY_LABEL, type PolicyStudyDetails, type PolicyStudySummary, type StudyMetric } from '@/lib/policy-study';
 
@@ -67,9 +67,9 @@ export function PolicyStudy({ study }: { study: PolicyStudySummary }) {
       <div className="shell">
         <Link href="/studies" className="back-link">All studies</Link>
         <p className="study-kicker">Comparative study</p>
-        <h1>{study.title}</h1>
-        <p className="study-lede">{study.description}</p>
-        <p className="study-meta">Published <time dateTime={study.publishedAt}>{date(study.publishedAt)}</time>. Captured <time dateTime={`${study.captureStartAt}/${study.captureEndAt}`}>{captureRange(study.captureStartAt, study.captureEndAt)}</time>. Commissioned by {study.commissionedBy} using the <Link href="/studies/policy-resolution-v1">{study.protocol}</Link> method.</p>
+        <h1>{studyHeadline(study)}</h1>
+        <p className="study-lede">{studyLede(study)}</p>
+        <p className="study-meta">{study.description} Published <time dateTime={study.publishedAt}>{date(study.publishedAt)}</time>. Captured <time dateTime={`${study.captureStartAt}/${study.captureEndAt}`}>{captureRange(study.captureStartAt, study.captureEndAt)}</time>. Commissioned by {study.commissionedBy} using the <Link href="/studies/policy-resolution-v1">{study.protocol}</Link> method.</p>
       </div>
     </header>
     <section className="study-stats" aria-label="Study sample">

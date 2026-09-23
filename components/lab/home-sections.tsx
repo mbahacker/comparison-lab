@@ -8,55 +8,86 @@ import { PART_NAMES, PartsLegend, ScoreRow } from "./score-bars";
 import { DemoLink } from "./demo-link";
 import { captureRange, date } from "@/lib/client";
 import type { FaqItem } from "@/lib/faq";
+import { studyShortName } from "@/lib/study-findings";
 
 const LANES: { key: PolicyLane; label: string }[] = [{ key: "shopping", label: "Shopping" }, { key: "support", label: "Support" }];
-const HERO_TOOL_LIMIT = 4;
 
 function sharedStudy(tools: ResearchTool[], studies: PolicyStudySummary[]) {
   const slugs = new Set(tools.map(t => t.studySlug));
   return slugs.size === 1 ? studies.find(s => s.slug === tools[0].studySlug) : undefined;
 }
 
-export function HomeHero({ tools, studies }: { tools: ResearchTool[]; studies: PolicyStudySummary[] }) {
+export function HomeHero() {
   return <section className="hero" aria-labelledby="hero-title">
     <div className="shell hero-grid">
       <div className="hero-text">
         <h1 id="hero-title">Ecommerce AI agents, tested on real storefronts.</h1>
         <p className="hero-lede">Every agent gets the same customer conversations in the chat widget on live stores. We check each answer against the store’s own policies, time the wait, and publish the scores with the evidence behind them.</p>
         <div className="hero-cta">
-          <a className="btn btn-primary" href="#tools">See the results <ArrowRight size={18} aria-hidden="true" /></a>
+          <a className="btn btn-primary" href="#latest">See the results <ArrowRight size={18} aria-hidden="true" /></a>
           <Link className="btn btn-secondary" href="/request">Analyze your tool</Link>
         </div>
         <p className="hero-disclosure">Operated by Alhena. Methods and criteria are public; the scored conversations open with a verified work email.</p>
       </div>
-      <Scoreboard tools={tools} studies={studies} />
+      <HeroArt />
     </div>
   </section>;
 }
 
-function Scoreboard({ tools, studies }: { tools: ResearchTool[]; studies: PolicyStudySummary[] }) {
-  const study = sharedStudy(tools, studies);
-  const shown = tools.slice(0, HERO_TOOL_LIMIT);
-  const deployments = study?.providers.reduce((sum, p) => sum + p.registeredStores, 0);
-  return <aside className="scoreboard" aria-labelledby="scoreboard-title">
-    <div className="scoreboard-head">
-      <div>
-        <p className="scoreboard-kicker">{study ? "Latest study" : "Latest results"}</p>
-        <h2 id="scoreboard-title">{study ? study.title : "Latest published result per tool"}</h2>
+/** Illustration of what a test looks like: a storefront chat widget answering under the store's policy, and the three measures. Generic by design: no real store, conversation or score. */
+function HeroArt() {
+  return <div className="hero-art" role="img" aria-label="Illustration: a storefront's chat widget answers a shopper's returns question under the store's policy, while the answer is checked for resolution and quality and its wait time is measured.">
+    <div className="art-window art-stack art-stack-2" aria-hidden="true" />
+    <div className="art-window art-stack art-stack-1" aria-hidden="true" />
+    <div className="art-window art-main" aria-hidden="true">
+      <div className="art-bar"><i /><i /><i /><span /></div>
+      <div className="art-store">
+        <div className="art-banner"><span /><span /></div>
+        <div className="art-grid">{Array.from({ length: 6 }, (_, i) => <div className="art-tile" key={i}><b /><span /><span /></div>)}</div>
       </div>
-      {study && <Link className="scoreboard-link" href={`/studies/${study.slug}`}>Read the study</Link>}
+      <div className="art-chat">
+        <div className="art-chat-head"><i />Store assistant</div>
+        <p className="art-bubble art-shopper">Can I still return a sale item I bought five weeks ago?</p>
+        <p className="art-bubble art-agent">Sale items can be returned within 30 days, so this one is outside the window. I can connect you with the team to look at options.</p>
+      </div>
     </div>
-    {study && <p className="scoreboard-meta">{deployments} storefront deployments, {study.sample.capturedCoreContexts} conversations, captured <time dateTime={`${study.captureStartAt}/${study.captureEndAt}`}>{captureRange(study.captureStartAt, study.captureEndAt)}</time>.</p>}
-    {shown.length ? LANES.map(lane => <div className="lane-board" key={lane.key}>
-      <h3>{lane.label}<span>Composite / 100</span></h3>
-      <ul>{shown.map(tool => <ScoreRow key={tool.id} name={tool.name} href={`/tools/${tool.id}`} lane={lane.key} result={tool[lane.key]} />)}</ul>
-    </div>) : <p className="scoreboard-empty">Scores from the first published study will appear here.</p>}
-    {tools.length > HERO_TOOL_LIMIT && <a className="scoreboard-more" href="#tools">See all {tools.length} tools</a>}
-    {shown.length > 0 && <div className="scoreboard-foot">
-      <PartsLegend />
-      <p>Each bar splits the composite into the points each measure adds. Scores cover the on-site chat widget on the storefronts tested, not every product or deployment.</p>
-    </div>}
-  </aside>;
+    <ul className="art-checks" aria-hidden="true">
+      <li className="art-check art-check-1"><i className="swatch part-policyResolution" />Right outcome under the store’s policy<b>✓</b></li>
+      <li className="art-check art-check-2"><i className="swatch part-quality" />Answer quality, 26 criteria<b>✓</b></li>
+      <li className="art-check art-check-3"><i className="swatch part-speed" />Time to the full answer<b>⏱</b></li>
+    </ul>
+  </div>;
+}
+
+const RESULTS_TOOL_LIMIT = 8;
+
+/** Latest composite per tool, in its own section below the hero so it can grow with the library. */
+export function HomeResults({ tools, studies }: { tools: ResearchTool[]; studies: PolicyStudySummary[] }) {
+  const study = sharedStudy(tools, studies);
+  const shown = tools.slice(0, RESULTS_TOOL_LIMIT);
+  const deployments = study?.providers.reduce((sum, p) => sum + p.registeredStores, 0);
+  return <section className="results-board" id="latest" aria-labelledby="latest-title">
+    <div className="shell">
+      <div className="results-head">
+        <div className="section-intro">
+          <h2 id="latest-title">Latest results</h2>
+          <p>{study
+            ? <>From the <Link href={`/studies/${study.slug}`}>{studyShortName(study)}</Link>: {deployments} storefront deployments, {study.sample.capturedCoreContexts} conversations, captured <time dateTime={`${study.captureStartAt}/${study.captureEndAt}`}>{captureRange(study.captureStartAt, study.captureEndAt)}</time>.</>
+            : <>Each tool’s composite score out of 100 from its latest published study. Open a tool for its study, sample and capture dates.</>}</p>
+        </div>
+        <Link className="text-arrow" href="/studies">Browse the studies <ArrowRight size={16} aria-hidden="true" /></Link>
+      </div>
+      {shown.length ? <div className="results-lanes">{LANES.map(lane => <div className="lane-board" key={lane.key}>
+        <h3>{lane.label}<span>Composite / 100</span></h3>
+        <ul>{shown.map(tool => <ScoreRow key={tool.id} name={tool.name} href={`/tools/${tool.id}`} lane={lane.key} result={tool[lane.key]} />)}</ul>
+      </div>)}</div> : <p className="scoreboard-empty">Scores from the first published study will appear here.</p>}
+      {tools.length > RESULTS_TOOL_LIMIT && <a className="scoreboard-more" href="#tools">See all {tools.length} tools</a>}
+      {shown.length > 0 && <div className="results-foot">
+        <PartsLegend />
+        <p>Each bar splits the composite into the points each measure adds. Scores cover the on-site chat widget on the storefronts tested, not every product or deployment.</p>
+      </div>}
+    </div>
+  </section>;
 }
 
 const MEASURES: { key: ScorePartKey; question: string; body: string }[] = [
@@ -98,7 +129,7 @@ export function HomeProcess({ study }: { study?: PolicyStudySummary }) {
     <div className="shell process-grid">
       <div className="section-intro process-intro">
         <h2 id="process-title">How an evaluation works</h2>
-        <p>The same four steps for every tool.{study && <> The figures come from <Link href={`/studies/${study.slug}`}>{study.title}</Link>.</>}</p>
+        <p>The same four steps for every tool.{study && <> The figures come from the <Link href={`/studies/${study.slug}`}>{studyShortName(study)}</Link>.</>}</p>
         <Link className="text-arrow" href="/methodology">Read the full methodology <ArrowRight size={16} aria-hidden="true" /></Link>
       </div>
       <ol className="process-steps">

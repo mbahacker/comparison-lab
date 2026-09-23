@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { PolicyLaneResult, PolicyStudySummary } from '../lib/policy-study.ts';
-import { featuredStudy, studyFindings, studyMetaDescription } from '../lib/study-findings.ts';
+import { featuredStudy, studyFindings, studyHeadline, studyMetaDescription, studyShortName } from '../lib/study-findings.ts';
 
 function lane(composite: number | null, seconds: number | null, includedStores = 5): PolicyLaneResult {
   const metric = (value: number | null, explanation = 'Synthetic fixture.') => ({ value, explanation });
@@ -60,4 +60,11 @@ test('the featured study is the newest original study with the most providers, n
   assert.equal(featuredStudy([derived, single, pair])?.slug, 'pair');
   assert.equal(featuredStudy([derived, single])?.slug, 'single');
   assert.equal(featuredStudy([derived]), undefined);
+});
+
+test('headlines name vendors alphabetically and ask the buyer question', () => {
+  const pair = study([provider('Sierra', lane(59, 8.5), lane(61.6, 8.4), 60.3), provider('Alhena', lane(68.4, 11.8), lane(81.4, 8.7), 74.9)]);
+  assert.equal(studyHeadline(pair), 'Alhena vs. Sierra: which AI agent gets shoppers the right answer?');
+  assert.equal(studyShortName(pair), 'Alhena vs. Sierra study');
+  assert.equal(studyHeadline(study([provider('Sierra', lane(59, 8.5), lane(61.6, 8.4), 60.3)])), "How Sierra's AI agent handles real shoppers");
 });

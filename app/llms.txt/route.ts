@@ -2,7 +2,7 @@ import { getToolLibrary } from '@/lib/server/reuse';
 import { getResearchLibrary } from '@/lib/server/research-library';
 import { listReports } from '@/lib/server/evidence';
 import { publicUrl } from '@/lib/server/public-data';
-import { latestResults } from '@/lib/study-findings';
+import { latestResults, studyHeadline } from '@/lib/study-findings';
 import { demoUrl } from '@/components/lab/demo-link';
 export const dynamic = 'force-dynamic';
 const label = (s: string) => s.replace(/[\r\n\[\]<>]/g, ' ').trim();
@@ -10,6 +10,7 @@ export async function GET() {
   const research = getResearchLibrary();
   const historical = getToolLibrary();
   const results = latestResults(research.tools);
+  const headlineFor = (slug: string, fallback: string) => { const found = research.studies.find(s => s.slug === slug); return found ? studyHeadline(found) : fallback; };
   const text = `# Alhena Research Lab
 
 > Published evaluations of ecommerce AI shopping and support agents on live storefronts, operated by Alhena. Every tool gets the same customer conversations; scores cover policy-compliant resolution, answer quality and full-answer speed, with conversation evidence behind each score.
@@ -44,11 +45,11 @@ Resolution measures correct answers or verified merchant-prescribed next steps i
 
 ## Current tool profiles
 
-${research.tools.length ? research.tools.map(t => `- [${label(t.name)}](${publicUrl(`/tools/${t.id}`)}) — ${t.protocol}; captures ${t.captureStartAt} to ${t.captureEndAt}; source [${label(t.studyTitle)}](${publicUrl(`/studies/${t.studySlug}`)})`).join('\n') : 'No current policy-resolution evaluations have been published.'}
+${research.tools.length ? research.tools.map(t => `- [${label(t.name)}](${publicUrl(`/tools/${t.id}`)}) — ${t.protocol}; captures ${t.captureStartAt} to ${t.captureEndAt}; source [${label(headlineFor(t.studySlug, t.studyTitle))}](${publicUrl(`/studies/${t.studySlug}`)})`).join('\n') : 'No current policy-resolution evaluations have been published.'}
 
 ## Published studies
 
-${research.studies.map(s => `- [${label(s.title)}](${publicUrl(`/studies/${s.slug}`)}) — published ${s.publishedAt}; original captures ${s.captureStartAt} to ${s.captureEndAt}`).join('\n')}
+${research.studies.map(s => `- [${label(studyHeadline(s))}](${publicUrl(`/studies/${s.slug}`)}) — record title "${label(s.title)}"; published ${s.publishedAt}; original captures ${s.captureStartAt} to ${s.captureEndAt}`).join('\n')}
 
 ## Historical quality pilot and submissions
 

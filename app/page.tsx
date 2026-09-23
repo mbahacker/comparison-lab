@@ -1,5 +1,5 @@
 import { ReportLibrary } from '@/components/lab/report-library';
-import { HomeCallToAction, HomeFaq, HomeHero, HomeMeasures, HomeProcess } from '@/components/lab/home-sections';
+import { HomeCallToAction, HomeFaq, HomeHero, HomeMeasures, HomeProcess, HomeResults } from '@/components/lab/home-sections';
 import { faqItems } from '@/lib/faq';
 import { featuredStudy } from '@/lib/study-findings';
 import { getToolLibrary } from '@/lib/server/reuse';
@@ -26,7 +26,8 @@ export default function Home() {
   return <>
     <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(data) }} />
     <main id="main" className="home">
-      <HomeHero tools={research.tools} studies={research.studies} />
+      <HomeHero />
+      <HomeResults tools={research.tools} studies={research.studies} />
       <HomeMeasures />
       <HomeProcess study={featuredStudy(research.studies)} />
       <ReportLibrary tools={historical.tools as ToolSummary[]} reports={listReports() as ReportSummary[]} studies={research.studies} latestTools={research.tools} />

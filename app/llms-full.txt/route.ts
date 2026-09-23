@@ -4,7 +4,7 @@ import { captureRange, date, score } from '@/lib/client';
 import { faqItems } from '@/lib/faq';
 import type { PolicyLane, PolicyStudySummary, StudyMetric } from '@/lib/policy-study';
 import { COMPOSITE_WEIGHTS, fullAnswerSeconds } from '@/lib/score-parts';
-import { studyFindings, toolSummarySentence } from '@/lib/study-findings';
+import { studyFindings, studyHeadline, toolSummarySentence } from '@/lib/study-findings';
 import { getResearchLibrary } from '@/lib/server/research-library';
 import { CAPABILITIES, PRODUCT_SCOPE_CHECKED_AT, notComparedOfferings, scopesFor, type VendorScope } from '@/lib/product-scope';
 import { publicUrl } from '@/lib/server/public-data';
@@ -41,8 +41,9 @@ function studySection(study: PolicyStudySummary) {
     row('Storefronts included', (x, l) => `${x[l].coverage.includedStores} of ${x.registeredStores}`),
     row('Conversations included', (x, l) => `${x[l].coverage.includedContexts} of ${x[l].coverage.includedContexts + x[l].coverage.excludedContexts}`),
   ].join('\n');
-  return `### ${label(study.title)}
+  return `### ${label(studyHeadline(study))}
 
+- Record title: ${label(study.title)}
 - URL: ${publicUrl(`/studies/${study.slug}`)}
 - Published: ${date(study.publishedAt)}. Captured: ${captureRange(study.captureStartAt, study.captureEndAt)} (${study.captureStartAt} to ${study.captureEndAt}).
 - Method: ${study.protocol}, frozen method SHA-256 ${study.method.sha256}. Commissioned by ${study.commissionedBy}.

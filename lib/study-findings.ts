@@ -14,6 +14,30 @@ const value = (metric: StudyMetric) => metric.value === null ? 'not eligible' : 
 const seconds = (lane: PolicyLaneResult) => { const s = fullAnswerSeconds(lane); return s === null ? null : `${s.toFixed(1)} s`; };
 const list = (providers: Provider[], pick: (p: Provider) => string) => providers.map(p => `${p.name} ${pick(p)}`).join(', ');
 
+/** Vendor names in alphabetical order, so "A vs. B" reads the same wherever a pairing appears. */
+function vendorNames(study: PolicyStudySummary) {
+  return study.providers.map(p => p.name).sort((a, b) => a.localeCompare(b));
+}
+const joinNames = (names: string[]) => names.length < 3 ? names.join(' vs. ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+
+/** Reader-facing headline. The published record title stays unchanged for citation. */
+export function studyHeadline(study: PolicyStudySummary) {
+  const names = vendorNames(study);
+  if (names.length === 1) return `How ${names[0]}'s AI agent handles real shoppers`;
+  return `${joinNames(names)}: which AI agent gets shoppers the right answer?`;
+}
+/** Short name for running text, e.g. "Alhena vs. Sierra study". */
+export function studyShortName(study: PolicyStudySummary) {
+  return `${joinNames(vendorNames(study))} study`;
+}
+/** One-sentence description of what was done, for the study page intro. */
+export function studyLede(study: PolicyStudySummary) {
+  const stores = studyDeployments(study);
+  return study.providers.length === 1
+    ? `We ran the same scripted shopping and support conversations with ${study.providers[0].name}'s AI agent on ${stores} live storefronts, then scored every answer for resolution, quality and speed.`
+    : `We ran the same scripted shopping and support conversations with each AI agent on its own live storefronts, ${stores} in total, then scored every answer for resolution, quality and speed.`;
+}
+
 export function studyDeployments(study: PolicyStudySummary) {
   return study.providers.reduce((sum, p) => sum + p.registeredStores, 0);
 }
@@ -69,5 +93,5 @@ export function studyMetaDescription(study: PolicyStudySummary) {
 export function toolSummarySentence(tool: ResearchTool) {
   const shop = seconds(tool.shopping), support = seconds(tool.support);
   const timing = shop && support ? ` Full answers arrived in ${shop} for shopping and ${support} for support on average.` : '';
-  return `In ${tool.studyTitle} (captured ${captureRange(tool.captureStartAt, tool.captureEndAt)}), ${tool.name} scored ${value(tool.shopping.composite)} for shopping and ${value(tool.support.composite)} for support, as composite scores out of 100.${timing}`;
+  return `In its latest study (captured ${captureRange(tool.captureStartAt, tool.captureEndAt)}), ${tool.name} scored ${value(tool.shopping.composite)} for shopping and ${value(tool.support.composite)} for support, as composite scores out of 100.${timing}`;
 }
