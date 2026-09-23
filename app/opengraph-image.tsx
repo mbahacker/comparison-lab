@@ -56,7 +56,7 @@ export default function Image() {
               Can I still return a sale item I bought five weeks ago?
             </div>
             <div style={{ display: "flex", margin: "12px 60px 16px 16px", padding: "10px 14px", borderRadius: 14, background: "#F1F4F9", color: INK, fontSize: 17, lineHeight: 1.35 }}>
-              That's outside the 30-day window for sale items. I can connect you with the team.
+              That’s outside the 30-day window for sale items. I can connect you with the team.
             </div>
           </div>
           <div style={{ display: "flex", flexDirection: "column", gap: 10, position: "absolute", left: 0, bottom: 0 }}>
