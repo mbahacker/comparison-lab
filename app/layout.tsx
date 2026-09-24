@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import "./globals.css";
 import "./marketing.css";
 import Link from "next/link";
+import { FooterComparisons } from "@/components/lab/footer-comparisons";
 import { ResultsLink } from "@/components/lab/results-link";
 import { DemoLink } from "@/components/lab/demo-link";
 import { jsonLd, siteStructuredData } from "@/lib/server/public-data";
@@ -121,6 +122,7 @@ export default function RootLayout({
               </a>
             </nav>
           </div>
+          <div className="shell footer-comparison-section"><FooterComparisons /></div>
           <div className="shell footer-note">
             <small>
               Alhena Research Lab is operated by Alhena. Scores describe the

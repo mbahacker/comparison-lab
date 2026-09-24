@@ -984,6 +984,36 @@ h1,
 .site-footer .footer-links a:hover {
   color: var(--ink);
 }
+.site-footer .footer-comparison-section {
+  display: block;
+  margin-top: 36px;
+}
+.site-footer .footer-comparisons h2 {
+  margin: 0 0 14px;
+  font-family: var(--font-sans);
+  font-size: 0.8125rem;
+  font-weight: 600;
+}
+.site-footer .footer-comparisons ul {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: 12px 32px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.site-footer .footer-comparisons a {
+  font-size: 0.875rem;
+  color: var(--quiet);
+  overflow-wrap: anywhere;
+}
+.site-footer .footer-comparisons a:hover {
+  color: var(--ink);
+  text-decoration: underline;
+}
+.site-footer .footer-comparison-note {
+  font-size: 0.75rem;
+}
 .site-footer .footer-note {
   display: block;
   margin-top: 48px;
