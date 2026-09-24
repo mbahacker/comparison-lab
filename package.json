@@ -20,7 +20,8 @@
     "benchmark:verify-report": "node benchmark/verify-report.mjs",
     "benchmark:verify": "node benchmark/verify.mjs",
     "admin": "node --experimental-strip-types lib/server/admin.ts",
-    "mailer": "node --experimental-strip-types lib/server/mail-daemon.ts"
+    "mailer": "node --experimental-strip-types lib/server/mail-daemon.ts",
+    "benchmark:shopping": "node benchmark/shopping-journey-cli.mjs"
   },
   "dependencies": {
     "@base-ui/react": "^1.7.0",

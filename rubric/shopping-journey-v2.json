@@ -1,0 +1,120 @@
+{
+  "id": "shopping-journey-v2",
+  "version": 2,
+  "status": "evidence-scoring-ready; automated-capture-not-enabled",
+  "operator": "Alhena Research Lab",
+  "scope": "Shopping outcomes and observed usable shopping reach on selected public storefronts",
+  "storesPerProvider": 5,
+  "reuseDays": 30,
+  "supportProtocol": "policy-resolution-v1",
+  "executionProfile": "public-desktop-en-US-v1",
+  "outcomeAggregation": "Equal task mean within each store, then equal store mean. Headline requires all 30 task cells assessable. No partial-credit judgments.",
+  "reachAggregation": "Equal interface-type mean within each store, then equal store mean. Headline requires all 25 cells resolved. Verified lower bound always uses all 25 cells.",
+  "combinedScore": false,
+  "interfaces": [
+    {
+      "id": "chat",
+      "label": "Shopping chat",
+      "description": "A conversational entry point that provides usable shopping assistance."
+    },
+    {
+      "id": "product-qa",
+      "label": "Product-page Q&A / FAQ",
+      "description": "Provider-powered product-specific assistance embedded on a product page. Static merchant FAQ copy alone does not count."
+    },
+    {
+      "id": "recommendations",
+      "label": "Embedded recommendations",
+      "description": "Provider-powered interactive product recommendations outside the chat panel."
+    },
+    {
+      "id": "search",
+      "label": "Search and discovery",
+      "description": "Provider-powered shopping search or guided discovery outside the chat panel."
+    },
+    {
+      "id": "cart-assistance",
+      "label": "Cart assistance",
+      "description": "A distinct provider-powered assistant embedded in or alongside the cart. A standard cart or a chat add-to-cart button alone is not another interface."
+    }
+  ],
+  "outcomes": [
+    {
+      "id": "discovery",
+      "label": "Find a suitable product",
+      "request": "Find a product for a stated use, budget and preference.",
+      "success": "Identify an available product satisfying every stated hard constraint, or correctly establish that none fits using current catalog evidence.",
+      "evidenceRoles": [
+        "interaction",
+        "catalog"
+      ]
+    },
+    {
+      "id": "product-grounding",
+      "label": "Answer product questions accurately",
+      "request": "Ask a material product-specific question about attributes, fit, compatibility or ingredients.",
+      "success": "Give the correct actionable answer grounded in the current product source; no fabricated or contradictory material claim.",
+      "evidenceRoles": [
+        "interaction",
+        "catalog"
+      ]
+    },
+    {
+      "id": "comparison",
+      "label": "Compare suitable alternatives",
+      "request": "Compare two relevant products against the same shopper needs and request a recommendation.",
+      "success": "Explain a verified meaningful difference and recommend a suitable option using the declared constraints.",
+      "evidenceRoles": [
+        "interaction",
+        "catalog"
+      ]
+    },
+    {
+      "id": "variant-selection",
+      "label": "Choose a purchasable variant",
+      "request": "Choose the required size, color or configuration and verify availability.",
+      "success": "Select or direct the shopper to the exact available variant matching the request, verified on the product page.",
+      "evidenceRoles": [
+        "interaction",
+        "catalog",
+        "product-state"
+      ]
+    },
+    {
+      "id": "cart-action",
+      "label": "Complete a cart action",
+      "request": "Add the selected available product and variant in the requested quantity to the cart.",
+      "success": "Actual cart state changes to the exact requested item, variant and quantity. A link, instruction or assistant claim without cart-state evidence fails. Never place an order.",
+      "evidenceRoles": [
+        "interaction",
+        "cart-before",
+        "cart-after"
+      ]
+    },
+    {
+      "id": "continuity",
+      "label": "Carry the shopping decision forward",
+      "request": "Move from the assistance surface to a product or cart, then continue the same shopping task.",
+      "success": "The chosen item, variant and relevant constraints survive the transition without forcing the shopper to restate them. Native product/cart destinations are allowed; additional provider widgets are not required.",
+      "evidenceRoles": [
+        "interaction",
+        "transition-before",
+        "transition-after"
+      ]
+    }
+  ],
+  "observationRules": [
+    "Pre-register five distinct verified customer domains, task scenarios, shopper constraints, relevant URLs and expected evidence before collection. Do not pick winning routes after observing outcomes.",
+    "Test a fixed discovery path: homepage, relevant category/search, representative product page, cart with a test item. Accept ordinary cookie consent when needed; record consent state and blockers.",
+    "Record placement, visibility before interaction, navigation steps and activation steps descriptively. These are discoverability observations, not measured engagement or conversion.",
+    "Each task uses the pre-registered primary route. Record fallback attempts separately; do not select the highest score from several interfaces.",
+    "Reach counts a distinct type once per store only after a usable shopping interaction and verified provider attribution. Repeated launchers and duplicate placements earn no extra credit.",
+    "Reach states: usable, present-untested, not-observed, blocked. Not-observed means absent from the documented tested paths, not absent from the provider product globally.",
+    "An observed task failure scores zero. Capture failures and unknown outcomes remain unknown; they prevent headline scoring rather than reducing the denominator.",
+    "Every decision needs separate primary and blind-auditor review with retained evidence. Both must pass for credit. A disagreement on success is an observed zero and is disclosed.",
+    "Keep an artifact manifest with capture date, storefront, task/interface cell, URL, evidence role, content and SHA-256. Retain screenshots/DOM originals privately; public artifacts must remove personal data.",
+    "Cart and continuity judgments require ordered before/after state evidence. Provider attribution requires evidence from the actual deployment, not a vendor logo list.",
+    "Reuse only same protocol hash and execution profile with evidence at most 30 days old. Never convert v1 chat scores into v2 scores.",
+    "Show outcomes and reach side by side; do not blend with each other or with unchanged support scores. Breadth describes offered shopping opportunities, not vendor intent, adoption or sales lift."
+  ]
+}

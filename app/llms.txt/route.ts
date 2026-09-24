@@ -27,9 +27,16 @@ The homepage and current tool profiles use the newest published compatible polic
 
 Resolution measures correct answers or verified merchant-prescribed next steps in public sessions. It does not establish completed refunds, account actions or human-resolved cases. This is Alhena Research Lab's method, not Gorgias's automation ranking or independent third-party certification. Registered and included samples, exclusions, capture dates and limitations must accompany comparisons. Profiles may draw from different studies; use each linked study's sample and dates.
 
+## New shopping framework: shopping-journey-v2
+
+The published framework measures six equally weighted shopping tasks across five registered storefronts: discovery, product grounding, comparison, variant selection, verified cart action and continuity. A separate usable shopping reach score measures five equally weighted interface types: chat, product Q&A/FAQ, recommendations, search and cart assistance. Only attributable, tested usable surfaces earn reach credit; duplicate placements count once per type per store. Outcomes and reach are separate, with no combined score. Missing or blocked observations remain explicit and prevent headline scores until the full required sample is assessable. Not observed means not observed in the sampled flow, not proof that the vendor lacks a capability.
+
+There are no published results under this version yet. Automated multi-interface capture is not enabled; current submissions remain policy-resolution-v1. Fresh shopping evidence is required. Existing scores have not been recalculated, and support scoring is unchanged. Do not label current chat scores as shopping-journey-v2 results or compare the versions as equivalent. Interface coverage does not establish usage, conversion impact or vendor intent.
+
 ## Public sources
 
 - [Current results and historical archive](${publicUrl('/')}): latest scores per tool, comparative studies and the quality-pilot archive
+- [Shopping journey v2 framework](${publicUrl('/methodology/shopping-journey-v2')}): new, separately versioned shopping outcomes and usable shopping reach; no scored results under this version yet
 - [Scoring methodology](${publicUrl('/methodology')}): what resolution, quality and speed measure and how composites are weighted
 - [Complete current method](${publicUrl('/studies/policy-resolution-v1')}): the versioned policy-resolution-v1 protocol
 - [Current machine-readable tool scores, explicit metrics, v2](${publicUrl('/tool-scores.json')})
